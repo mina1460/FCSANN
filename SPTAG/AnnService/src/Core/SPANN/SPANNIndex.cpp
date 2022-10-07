@@ -266,17 +266,17 @@ namespace SPTAG
         {
             if (!m_bReady) return ErrorCode::EmptyIndex;
 
-            std::vector<input_query<SPTAG::SizeType, CLUSTER_ID>> input_queries;
-
+            std::vector<input_query<QueryResult, CLUSTER_ID>> input_queries;
+            std::vector< COMMON::QueryResultSet<T>* > vecQueryResultSet;
             for (int query =0; query<queries.size(); query++)
             {
                 QueryResult &p_query = queries[query];
-                COMMON::QueryResultSet<T>* p_queryResults;
                 if (p_query.GetResultNum() >= m_options.m_searchInternalResultNum) 
-                    p_queryResults = (COMMON::QueryResultSet<T>*) & p_query;
+                    vecQueryResultSet.push_back( (COMMON::QueryResultSet<T>*) & p_query );
                 else
-                    p_queryResults = new COMMON::QueryResultSet<T>((const T*)p_query.GetTarget(), m_options.m_searchInternalResultNum);
+                    vecQueryResultSet.push_back( new COMMON::QueryResultSet<T>((const T*)p_query.GetTarget(), m_options.m_searchInternalResultNum) );
 
+                COMMON::QueryResultSet<T>* p_queryResults = vecQueryResultSet[query];
                 m_index->SearchIndex(*p_queryResults);
                 
                 std::shared_ptr<ExtraWorkSpace> workSpace = nullptr;
@@ -305,20 +305,42 @@ namespace SPTAG
                             continue;
                         workSpace->m_postingIDs.emplace_back(postingID);
                     }
-                    input_queries.push_back(input_query<SPTAG::SizeType, CLUSTER_ID>(query, workSpace->m_postingIDs));
+                    input_queries.push_back(input_query<QueryResult, CLUSTER_ID>(query, queries[query] ,workSpace->m_postingIDs));
                 }
 
             }
-            Fakasulo fakasulo(input_queries);
+            Fakasulo<QueryResult, CLUSTER_ID> fakasulo(input_queries);
             fakasulo.process();
-            std::vector<inverted_index_node<CLUSTER_ID, SPTAG::SizeType>> inverted_index = fakasulo.get_inverted_index();
+            std::vector<inverted_index_node<SPTAG::QueryResult, CLUSTER_ID>> inverted_index = fakasulo.get_inverted_index();
+            std::shared_ptr<ExtraWorkSpace> workSpace = nullptr;
+
+            for (auto query: vecQueryResultSet)
+                query->Reverse();
+
             for(auto element : inverted_index){
                 std::cout << element.get_cluster_id() << " : ";
-                for(auto vec : element.get_query_ids()) {
-                    std::cout << vec << " ";
-                }
+                
+                workSpace = m_workSpacePool->Rent();
+                workSpace->m_deduper.clear();
+                workSpace->m_postingIDs.clear();
+                workSpace->m_postingIDs.push_back(element.get_cluster_id());
+
+                m_extraSearcher->SearchInvertedIndex(workSpace.get(), element.get_cluster_id(), element.get_query_ids(), m_index, nullptr);
+                m_workSpacePool->Return(workSpace);
+                
+
+                // for(auto vec : element.get_query_ids()) {
+                //     std::cout << vec << " ";
+                // }
+
             std::cout << std::endl;
             }
+
+            for (auto query: vecQueryResultSet)
+                query->SortResult();
+
+
+
         }
 
         template <typename T>

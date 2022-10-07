@@ -186,7 +186,69 @@ namespace SPTAG
 #endif
                 return true;
             }
+            virtual void SearchInvertedIndex(ExtraWorkSpace* p_exWorkSpace, int p_postingID, std::vector<QueryResult> &queries, 
+                std::shared_ptr<VectorIndex> p_index, SearchStats* p_stats)
+            {
+                std::vector<COMMON::QueryResultSet<ValueType>> vecQueryResults;
+                 for(auto query : queries){
+                    vecQueryResults.push_back(*((COMMON::QueryResultSet<ValueType>*) &query));
+                 }
+                
+                int diskRead = 0;
+                int diskIO = 0;
+                int listElements = 0;
 
+                ListInfo* listInfo = &(m_listInfos[p_postingID]);
+                int fileid = m_oneContext? 0: p_postingID / m_listPerFile;
+
+                Helper::DiskIO* indexFile = m_indexFiles[fileid].get();
+
+                diskRead += listInfo->listPageCount;
+                diskIO += 1;
+                listElements += listInfo->listEleCount;
+                // std::cout << "************************\n";
+                // std::cout << "FileId: " << fileid << " PostingId: " << curPostingID << std::endl;
+
+                size_t totalBytes = (static_cast<size_t>(listInfo->listPageCount) << PageSizeEx);   
+                char* buffer = (char*)((p_exWorkSpace->m_pageBuffers[p_postingID]).GetBuffer());
+
+                auto& request = p_exWorkSpace->m_diskRequests[p_postingID];
+                request.m_offset = listInfo->listOffset;
+                request.m_readSize = totalBytes;
+                request.m_buffer = buffer;
+                request.m_status = (fileid << 16) | p_exWorkSpace->m_spaceID;
+                request.m_payload = (void*)listInfo; 
+                request.m_success = false;
+
+                request.m_callback = [&p_exWorkSpace, &vecQueryResults, &p_index, &request, p_postingID,this](bool success)
+                    {
+                        char* buffer = request.m_buffer;
+                        ListInfo* listInfo = (ListInfo*)(request.m_payload);
+
+                        // decompress posting list
+                        char* p_postingListFullData = buffer + listInfo->pageOffset;
+                        if (m_enableDataCompression)
+                        {
+                            DecompressPosting();
+                        }
+
+                        for (int i = 0; i < listInfo->listEleCount; i++) { 
+                            uint64_t offsetVectorID, offsetVector;
+                            (this->*m_parsePosting)(offsetVectorID, offsetVector, i, listInfo->listEleCount);
+                            int vectorID = *(reinterpret_cast<int*>(p_postingListFullData + offsetVectorID));
+                            if (p_exWorkSpace->m_deduper.CheckAndSet(vectorID)) continue; 
+                            (this->*m_parseEncoding)(p_index, listInfo, (ValueType*)(p_postingListFullData + offsetVector));
+                            //queryResults.GetQuantizedTarget() is the target query
+                            //p_postingListFullData + offsetVector is vectors in centroid
+                            for(auto &query: vecQueryResults){
+                                auto distance2leaf = p_index->ComputeDistance(query.GetQuantizedTarget(), p_postingListFullData + offsetVector); 
+                                query.AddPoint(vectorID, distance2leaf); 
+                            }
+                        } 
+                    };
+
+                BatchReadFileAsync(m_indexFiles, (p_exWorkSpace->m_diskRequests).data(), 1);
+            }
             virtual void SearchIndex(ExtraWorkSpace* p_exWorkSpace,
                 QueryResult& p_queryResults,
                 std::shared_ptr<VectorIndex> p_index,
@@ -312,6 +374,7 @@ namespace SPTAG
 
 #ifdef ASYNC_READ
 #ifdef BATCH_READ
+                std::cout << "HEREEEEEEEEE***************\n\n\n\n\n";
                 BatchReadFileAsync(m_indexFiles, (p_exWorkSpace->m_diskRequests).data(), postingListCount);
 #else
                 while (unprocessed > 0)

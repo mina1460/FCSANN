@@ -5,12 +5,13 @@
 #include <algorithm>
 #include <vector>
 #include <map>
+#include "inc/Core/SearchQuery.h"
 
 typedef int CLUSTER_ID;
 typedef int QUERY_ID;
 
 // T is the cluster ID and U is the query ID
-template <typename T, typename U>
+template <typename U, typename T>
 class inverted_index_node {
     public:
         inverted_index_node(){
@@ -33,14 +34,14 @@ class inverted_index_node {
         void set_query_ids(std::vector<U> ids){
             query_ids = ids;
         }
-    void print_inverted_index_node(){
-        std::cout << get_cluster_id() << " { " ;
-        for(const auto cluster : get_query_ids()){
-            std::cout << cluster << " ";
-        }
-        std::cout << "} \n";
+    // void print_inverted_index_node(){
+    //     std::cout << get_cluster_id() << " { " ;
+    //     for(const auto cluster : get_query_ids()){
+    //         std::cout << cluster << " ";
+    //     }
+    //     std::cout << "} \n";
 
-    }
+    // }
     private:
         T cluster_id;
         std::vector<U> query_ids;
@@ -53,15 +54,26 @@ class input_query {
             query_id = -1;
             nearest_clusters = {};
         }
-        input_query(T _query_id, std::vector<U> _nearest_clusters){
+        input_query(int _query_id, std::vector<U> _nearest_clusters){
             query_id = _query_id;
             nearest_clusters = _nearest_clusters;
         }
+
+        input_query(int _query_id, SPTAG::QueryResult _query_result ,std::vector<U> _nearest_clusters){
+            query_id = _query_id;
+            query_result = _query_result;
+            nearest_clusters = _nearest_clusters;
+        }
+
         T get_query_id(){
             return query_id;
         }
+
+        SPTAG::QueryResult get_query_result(){
+            return query_result;
+        }
         
-        void set_query_id(T id){
+        void set_query_id(int id){
             query_id = id;
         }
 
@@ -69,47 +81,49 @@ class input_query {
             return nearest_clusters;
         }
         
-    void print_query(){
-        std::cout << get_query_id() << " { " ;
-        for(auto cluster : get_nearest_clusters()){
-            std::cout << cluster << " ";
-        }
-        std::cout << "} \n";
+    // void print_query(){
+    //     std::cout << get_query_id() << " { " ;
+    //     for(auto cluster : get_nearest_clusters()){
+    //         std::cout << cluster << " ";
+    //     }
+    //     std::cout << "} \n";
 
-    }
+    // }
         
 
     private:
         T query_id;
+        SPTAG::QueryResult query_result;
         std::vector<U> nearest_clusters;
 };
 
-
-
+// T --> QueryResult
+// U --> ClusterID 
+template <typename T, typename U>
 class Fakasulo {
     public:
     Fakasulo(){
             input_queries = {};
             inverted_index = {};
         }
-    Fakasulo(std::vector<input_query<QUERY_ID, CLUSTER_ID>> _input_queries){
+    Fakasulo(std::vector<input_query<T, U>> _input_queries){
             input_queries = _input_queries;
-            for (input_query<QUERY_ID, CLUSTER_ID>& q : input_queries){
+            for (input_query<T, U>& q : input_queries){
                 for(auto& cluster_id : q.get_nearest_clusters()){
                     if(inverted_index_map.find(cluster_id) == inverted_index_map.end()){
-                        inverted_index_map[cluster_id] = new std::vector<QUERY_ID>();
+                        inverted_index_map[cluster_id] = new std::vector<input_query<T, U>>();
                     }
                 }
             }
         }
         
         void process(){
-            for(input_query<QUERY_ID, CLUSTER_ID>& q : input_queries){
+            for(input_query<T, U>& q : input_queries){
                 for(auto cluster_id : q.get_nearest_clusters()){
                     if(inverted_index_map.find(cluster_id) == inverted_index_map.end()){
-                        inverted_index_map[cluster_id] = new std::vector<CLUSTER_ID>();
+                        inverted_index_map[cluster_id] = new std::vector<input_query<T, U>>();
                     }
-                    inverted_index_map[cluster_id]->push_back(q.get_query_id());
+                    inverted_index_map[cluster_id]->push_back(q);
                 }
             }
             
@@ -119,14 +133,14 @@ class Fakasulo {
         void convert_map_to_vector(){
             inverted_index.clear();
             for(auto element : this->inverted_index_map){
-                std::vector<QUERY_ID> temp;
+                std::vector<input_query<T, U>> temp;
                 if(element.second){
                     temp = *(element.second);
                 }
                 inverted_index.emplace_back(element.first, temp);
             }
         }
-    std::vector<inverted_index_node<CLUSTER_ID, QUERY_ID>> get_inverted_index(){
+    std::vector<inverted_index_node<T, U>> get_inverted_index(){
         return inverted_index;
     }
 
@@ -139,10 +153,10 @@ class Fakasulo {
         }
 
     private:
-        std::vector<input_query<QUERY_ID, CLUSTER_ID>> input_queries;
-        std::vector<inverted_index_node<CLUSTER_ID, QUERY_ID>> inverted_index;
+        std::vector<input_query<T, U>> input_queries;
+        std::vector<inverted_index_node<T, U>> inverted_index;
 
-        std::map<CLUSTER_ID, std::vector<QUERY_ID>*> inverted_index_map;
+        std::map<U, std::vector<input_query<T, U>>*> inverted_index_map;
 
 };
 

@@ -176,6 +176,9 @@ namespace SPTAG {
                 std::set<int>* truth = nullptr,
                 std::map<int, std::set<int>>* found = nullptr) = 0;
 
+            virtual void SearchInvertedIndex(ExtraWorkSpace* p_exWorkSpace, int p_postingID, std::vector<QueryResult> &queries, 
+                std::shared_ptr<VectorIndex> p_index, SearchStats* p_stats);
+
             virtual bool BuildIndex(std::shared_ptr<Helper::VectorSetReader>& p_reader, 
                 std::shared_ptr<VectorIndex> p_index, 
                 Options& p_opt) = 0;
