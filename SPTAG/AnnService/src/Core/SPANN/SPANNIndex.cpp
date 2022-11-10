@@ -11,6 +11,7 @@
 #pragma warning(disable:4242)  // '=' : conversion from 'int' to 'short', possible loss of data
 #pragma warning(disable:4244)  // '=' : conversion from 'int' to 'short', possible loss of data
 #pragma warning(disable:4127)  // conditional expression is constant
+#define BATCH_READ_COUNT 5
 
 namespace SPTAG
 {
@@ -237,11 +238,7 @@ namespace SPTAG
                 m_workSpacePool->Return(workSpace);
                 p_queryResults->SortResult();
 
-                std::cout << "\n\n For target: " << *p_queryResults->GetTarget() << " The closest 3 points are: "<<std::endl;
-                for (int i =0; i<3; i++){
-                    std::cout << "VID: " << p_queryResults->GetResult(i)->VID << " Dist: " << p_queryResults->GetResult(i)->Dist << std::endl;
-                }
-                std::cout << "Finished Sorting Reults" << std::endl;
+    
             }
 
             if (p_query.GetResultNum() < m_options.m_searchInternalResultNum) {
@@ -266,7 +263,7 @@ namespace SPTAG
         {
             if (!m_bReady) return ErrorCode::EmptyIndex;
 
-            std::vector<input_query<QueryResult, CLUSTER_ID>> input_queries;
+            std::vector<input_query> input_queries;
             std::vector< COMMON::QueryResultSet<T>* > vecQueryResultSet;
             for (int query =0; query<queries.size(); query++)
             {
@@ -305,42 +302,80 @@ namespace SPTAG
                             continue;
                         workSpace->m_postingIDs.emplace_back(postingID);
                     }
-                    input_queries.push_back(input_query<QueryResult, CLUSTER_ID>(query, queries[query] ,workSpace->m_postingIDs));
+                    //We are pushing a copy of the input query
+                    input_queries.push_back(input_query(query, queries[query] ,workSpace->m_postingIDs));
+                    m_workSpacePool->Return(workSpace);
                 }
 
             }
-            Fakasulo<QueryResult, CLUSTER_ID> fakasulo(input_queries);
+            // Faksulo constructor is taking a copy from the input queries
+            Fakasulo fakasulo(input_queries);
             fakasulo.process();
-            std::vector<inverted_index_node<SPTAG::QueryResult, CLUSTER_ID>> inverted_index = fakasulo.get_inverted_index();
+            std::vector<inverted_index_node> inverted_index = fakasulo.get_inverted_index();
+            // Different queries for invert
+            std::map<int, std::vector<SPTAG::QueryResult*>*> inverted_index_map = fakasulo.get_inverted_index_map();
             std::shared_ptr<ExtraWorkSpace> workSpace = nullptr;
-
-            for (auto query: vecQueryResultSet)
-                query->Reverse();
-
-            for(auto element : inverted_index){
-                std::cout << element.get_cluster_id() << " : ";
+            
+            auto start_time_after_fakasulo = std::chrono::high_resolution_clock::now();
+            
+            for (auto& query: vecQueryResultSet)
+                {
+                    query->Reverse(); 
+                }
                 
+            
+            int loop_index = 0;
+            while(loop_index < inverted_index.size()){
+                //read here the batch of clusters
+               
+                int read_count = std::min(BATCH_READ_COUNT, (int)inverted_index.size()-loop_index);
+                // prepare disk requests for batch read async 
+
+                std::vector<int> read_list(read_count); //Cluster_Ids to read
+                for(int j=0; j<read_count; j++){
+                    read_list[j] = inverted_index[loop_index+j].get_cluster_id();
+                } 
+
+                std::queue<QueueData >  readings;
                 workSpace = m_workSpacePool->Rent();
                 workSpace->m_deduper.clear();
                 workSpace->m_postingIDs.clear();
-                workSpace->m_postingIDs.push_back(element.get_cluster_id());
-
-                m_extraSearcher->SearchInvertedIndex(workSpace.get(), element.get_cluster_id(), element.get_query_ids(), m_index, nullptr);
+                m_extraSearcher->LoadFromDisk(workSpace,read_list, readings);
                 m_workSpacePool->Return(workSpace);
+
+                    
+                int processed = 0;
+                while(processed < read_count){
+                    if(readings.empty()) continue;
+                    
+                    QueueData queueData = readings.front();
                 
+                    workSpace = m_workSpacePool->Rent();
+                    workSpace->m_deduper.clear();
+                    workSpace->m_postingIDs.clear();
 
-                // for(auto vec : element.get_query_ids()) {
-                //     std::cout << vec << " ";
-                // }
+                    int cluster_id = queueData.clusterID;
+                    workSpace->m_postingIDs.push_back(cluster_id);
 
-            std::cout << std::endl;
+                    
+                    readings.pop();
+                    m_extraSearcher->SearchInvertedIndex(workSpace.get(), *(inverted_index_map[cluster_id]),
+                        nullptr, m_index, queueData);
+                    
+                    processed++;
+                    m_workSpacePool->Return(workSpace);
+
+                }
+                loop_index += read_count;
             }
-
-            for (auto query: vecQueryResultSet)
-                query->SortResult();
-
-
-
+            for(auto& query: queries){
+                auto* qs = (COMMON::QueryResultSet<T>*) & query;
+                qs->SortResult();
+            }
+            auto end_time_after_fakasulo = std::chrono::high_resolution_clock::now();
+            auto int_ms = std::chrono::duration_cast<std::chrono::milliseconds> (end_time_after_fakasulo - start_time_after_fakasulo) ;
+            std::cout << "Fakasulo time without inverted index construction: " << int_ms.count() << std::endl; 
+            
         }
 
         template <typename T>
@@ -992,5 +1027,6 @@ template class SPTAG::SPANN::Index<Type>; \
 
 #include "inc/Core/DefinitionList.h"
 #undef DefineVectorValueType
+
 
 

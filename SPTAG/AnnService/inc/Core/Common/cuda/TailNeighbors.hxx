@@ -5,7 +5,7 @@
 #include "Distance.hxx"
 #include "KNN.hxx"
 
-#include <cub/cub.cuh>
+#include <thrust/system/cuda/detail/cub/cub.cuh>
 #include <chrono>
 #include<thrust/execution_policy.h>
 #include<thrust/sort.h>

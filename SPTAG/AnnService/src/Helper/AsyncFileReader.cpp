@@ -18,7 +18,7 @@ namespace SPTAG {
             memset(myiocbs.data(), 0, num * sizeof(struct iocb));
             for (int i = 0; i < num; i++) {
                 AsyncReadRequest* readRequest = &(readRequests[i]);
-
+        
                 channel = readRequest->m_status & 0xffff;
                 int fileid = (readRequest->m_status >> 16);
 
@@ -43,9 +43,11 @@ namespace SPTAG {
                             if (s > 0) {
                                 submitted[i] += s;
                                 totalSubmitted += s;
+                                // LOG(Helper::LogLevel::LL_Info, "fid:%d channel %d, to submit:%d, submitted:%s\n", i, channel, iocbs[i].size() - submitted[i]);
+
                             }
                             else {
-                                LOG(Helper::LogLevel::LL_Error, "fid:%d channel %d, to submit:%d, submitted:%s\n", i, channel, iocbs[i].size() - submitted[i], strerror(-s));
+                                // LOG(Helper::LogLevel::LL_Error, "fid:%d channel %d, to submit:%d, submitted:%s\n", i, channel, iocbs[i].size() - submitted[i], strerror(-s));
                             }
                         }
                     }

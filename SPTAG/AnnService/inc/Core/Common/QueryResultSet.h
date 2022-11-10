@@ -78,12 +78,22 @@ public:
     {
         if (dist < m_results[0].Dist || (dist == m_results[0].Dist && index < m_results[0].VID))
         {
+            if(m_vectorSet.count(m_results[0].VID))
+                m_vectorSet.erase(m_results[0].VID);
             m_results[0].VID = index;
             m_results[0].Dist = dist;
             Heapify(m_resultNum);
+            m_vectorSet.insert(index);
             return true;
         }
         return false;
+    }
+
+    bool DeDupAddPoint(const SizeType index, float dist)
+    {
+       if(m_vectorSet.count(index) == 0){
+           return AddPoint(index, dist);
+       }else return false;
     }
 
     inline void SortResult()
@@ -117,6 +127,7 @@ private:
         }
         if (next == maxidx && m_results[parent] < m_results[next]) std::swap(m_results[parent], m_results[next]);
     }
+    // std::unordered_set<int> m_vectorSet {0};
 };
 }
 }

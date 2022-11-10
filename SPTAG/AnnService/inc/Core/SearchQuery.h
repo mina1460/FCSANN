@@ -7,7 +7,7 @@
 #include "SearchResult.h"
 
 #include <cstring>
-
+#include <unordered_set>
 namespace SPTAG
 {
 
@@ -241,6 +241,10 @@ protected:
     bool m_withMeta;
 
     Array<BasicResult> m_results;
+    
+    std::unordered_set<int> m_vectorSet {0};
+
+
 };
 } // namespace SPTAG
 

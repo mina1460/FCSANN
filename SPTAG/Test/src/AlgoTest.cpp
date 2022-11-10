@@ -8,6 +8,7 @@
 
 #include <unordered_set>
 #include <chrono>
+#include <thread>
 
 template <typename T>
 void Build(SPTAG::IndexAlgoType algo, std::string distCalcMethod, std::shared_ptr<SPTAG::VectorSet>& vec, std::shared_ptr<SPTAG::MetadataSet>& meta, const std::string out)
@@ -81,35 +82,76 @@ void BuildWithMetaMapping(SPTAG::IndexAlgoType algo, std::string distCalcMethod,
     BOOST_CHECK(SPTAG::ErrorCode::Success == vecIndex->SaveIndex(out));
 }
 
+void ThreadedSearch(std::shared_ptr<SPTAG::VectorIndex> &vecIndex, std::vector<std::vector<SPTAG::QueryResult>> &queries, int i){
+     vecIndex->SearchIndex(queries[i]);
+}
+
 template <typename T>
 void Search(const std::string folder, T* vec, SPTAG::SizeType n, int k, std::string* truthmeta)
 {
+    int num_threads = 16;
+    std::thread threadPool[num_threads];
     std::shared_ptr<SPTAG::VectorIndex> vecIndex;
     BOOST_CHECK(SPTAG::ErrorCode::Success == SPTAG::VectorIndex::LoadIndex(folder, vecIndex));
     BOOST_CHECK(nullptr != vecIndex);
 
-    std::vector<SPTAG::QueryResult> queries;
+    auto start_sptag_time = std::chrono::high_resolution_clock::now();
+    std::vector<std::vector<SPTAG::QueryResult>> queries(num_threads, std::vector<SPTAG::QueryResult>());
+    
     for (SPTAG::SizeType i = 0; i < n; i++) 
     {
+        int index = i * num_threads / n; 
         SPTAG::QueryResult res(vec, k, true);
-        queries.push_back(res);
-        // vecIndex->SearchIndex(res);
-        // std::unordered_set<std::string> resmeta;
-        // for (int j = 0; j < k; j++)
-        // {
-        //     resmeta.insert(std::string((char*)res.GetMetadata(j).Data(), res.GetMetadata(j).Length()));
-        //     std::cout << res.GetResult(j)->Dist << "@(" << res.GetResult(j)->VID << "," << std::string((char*)res.GetMetadata(j).Data(), res.GetMetadata(j).Length()) << ") ";
-        // }
-        // std::cout << std::endl;
-        // for (int j = 0; j < k; j++)
-        // {
-        //     BOOST_CHECK(resmeta.find(truthmeta[i * k + j]) != resmeta.end());
-        // }
+        queries[index].push_back(res);
+        // /*
+        vecIndex->SearchIndex(res);
+        std::unordered_set<std::string> resmeta;
+        // /*
+        std::cout << "SPTAG query: " << i << "+";
+        for (int j = 0; j < k; j++)
+        {
+            resmeta.insert(std::string((char*)res.GetMetadata(j).Data(), res.GetMetadata(j).Length()));
+            std::cout << res.GetResult(j)->Dist << "@(" << res.GetResult(j)->VID << "," << std::string((char*)res.GetMetadata(j).Data(), res.GetMetadata(j).Length()) << ") ";
+        }
+        std::cout << std::endl;
+        // */
+        
         vec += vecIndex->GetFeatureDim();
     }
-    vecIndex->SearchIndex(queries);
+    auto end_sptag_time = std::chrono::high_resolution_clock::now();
+    auto int_ms = std::chrono::duration_cast<std::chrono::milliseconds> (end_sptag_time - start_sptag_time) ;
+    std::cout << "SPTAG time: " << int_ms.count() << std::endl;
+    start_sptag_time = std::chrono::high_resolution_clock::now();
+    
+    
+    // Our search
+    for(int i=0; i<num_threads; i++){
+        threadPool[i] = std::thread(ThreadedSearch, std::ref(vecIndex), std::ref(queries), i);
+    }
+    for(int i=0; i<num_threads; i++){
+        threadPool[i].join();
+    }
+
+    end_sptag_time = std::chrono::high_resolution_clock::now();
+    int our_index = 0;
+    for(auto& queries_sub: queries){
+        for(auto& query: queries_sub){
+        std::cout << "Fakasulo query: " << our_index++ << "+";
+         for (int j = 0; j < k; j++)
+            {
+                
+                std::cout << query.GetResult(j)->Dist << "@(" << query.GetResult(j)->VID << "," << query.GetResult(j)->VID << ") ";
+            }
+            std::cout << "\n";
+            }
+    }
+    
+    int_ms = std::chrono::duration_cast<std::chrono::milliseconds> (end_sptag_time - start_sptag_time) ;
+    std::cout << "Fakasulo time: " << int_ms.count() << std::endl; 
     vecIndex.reset();
 }
+
+
 
 template <typename T>
 void Add(const std::string folder, std::shared_ptr<SPTAG::VectorSet>& vec, std::shared_ptr<SPTAG::MetadataSet>& meta, const std::string out)
@@ -164,42 +206,31 @@ template <typename T>
 void Test(SPTAG::IndexAlgoType algo, std::string distCalcMethod)
 {
     
-    SPTAG::SizeType n = 20000, q = 40;
+    SPTAG::SizeType n = 2000, q = 10;
     SPTAG::DimensionType m = 10;
-    int k = 3;
+    int k = 10;
     std::vector<T> vec;
-    std::cout << "--------------Vec--------------------\n\n";
+    // std::cout << "--------------Vec--------------------\n\n";
     for (SPTAG::SizeType i = 0; i < n; i++) {
         for (SPTAG::DimensionType j = 0; j < m; j++) {
-            vec.push_back((T)(rand()%1000));
+            vec.push_back((T)(rand()%10000));
+            //vec.push_back((T)(i));
             // std::cout << (T)i << " ";
         }
         // std::cout << std::endl;
     }
-    std::cout << "----------------------------------\n\n";
+    // std::cout << "----------------------------------\n\n";
 
     
     std::vector<T> query;
-    std::cout << "----------------Query-----------------\n\n";
+    // std::cout << "----------------Query-----------------\n\n";
     for (SPTAG::SizeType i = 0; i < q; i++) {
         for (SPTAG::DimensionType j = 0; j < m; j++) {
-            query.push_back((T)(rand()%1000));
-            // std:: cout << (T)rand()%1000 << " ";
+            query.push_back((T)(rand()%10000));
         }
-        std::cout << std::endl;
+        // std::cout << std::endl;
     }
-    // query[0] = 2000;
 
-    // cout vector query
-    // for (SPTAG::SizeType i = 0; i < q; i++) {
-    //     for (SPTAG::DimensionType j = 0; j < m; j++) {
-           
-    //         std:: cout << query[i] << " ";
-    //     }
-    //     std::cout << std::endl;
-    // }
-
-    // std::cout << "----------------------------------\n\n";
 
     
     std::vector<char> meta;

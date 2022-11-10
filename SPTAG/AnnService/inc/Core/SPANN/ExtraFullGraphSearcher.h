@@ -20,6 +20,7 @@ namespace SPTAG
 {
     namespace SPANN
     {
+        
         extern std::function<std::shared_ptr<Helper::DiskIO>(void)> f_createAsyncIO;
 
         struct Selection {
@@ -112,6 +113,33 @@ namespace SPTAG
             queryResults.AddPoint(vectorID, distance2leaf); \
         } \
 
+// for (int i = 0; i < listInfo->listEleCount; i++) { 
+//                             uint64_t offsetVectorID, offsetVector;
+//                             (this->*m_parsePosting)(offsetVectorID, offsetVector, i, listInfo->listEleCount);
+//                             int vectorID = *(reinterpret_cast<int*>(p_postingListFullData + offsetVectorID));
+//                             if (p_exWorkSpace->m_deduper.CheckAndSet(vectorID)) continue; 
+//                             (this->*m_parseEncoding)(p_index, listInfo, (ValueType*)(p_postingListFullData + offsetVector));
+//                             //queryResults.GetQuantizedTarget() is the target query
+//                             //p_postingListFullData + offsetVector is vectors in centroid
+//                             for(auto &query: vecQueryResults){
+//                                 auto distance2leaf = p_index->ComputeDistance(query.GetQuantizedTarget(), p_postingListFullData + offsetVector); 
+//                                 query.AddPoint(vectorID, distance2leaf); 
+//                             }
+//                         } 
+
+#define ProcessInvertedPosting() \
+    for (int i = 0; i < listInfo->listEleCount; i++) { \
+        uint64_t offsetVectorID, offsetVector;\
+        (this->*m_parsePosting)(offsetVectorID, offsetVector, i, listInfo->listEleCount);\
+        int vectorID = *(reinterpret_cast<int*>(p_postingListFullData + offsetVectorID));\
+        if (p_exWorkSpace->m_deduper.CheckAndSet(vectorID)) continue; \
+        (this->*m_parseEncoding)(p_index, listInfo, (ValueType*)(p_postingListFullData + offsetVector));\
+            for(auto &query: vecQueryResults){\
+                auto distance2leaf = p_index->ComputeDistance(query.GetQuantizedTarget(), p_postingListFullData + offsetVector); \
+                query.AddPoint(vectorID, distance2leaf); \
+            }\
+    } \
+
         template <typename ValueType>
         class ExtraFullGraphSearcher : public IExtraSearcher
         {
@@ -127,6 +155,7 @@ namespace SPTAG
             virtual ~ExtraFullGraphSearcher()
             {
             }
+
 
             virtual bool LoadIndex(Options& p_opt) {
                 m_extraFullGraphFile = p_opt.m_indexDirectory + FolderSep + p_opt.m_ssdIndex;
@@ -186,68 +215,103 @@ namespace SPTAG
 #endif
                 return true;
             }
-            virtual void SearchInvertedIndex(ExtraWorkSpace* p_exWorkSpace, int p_postingID, std::vector<QueryResult> &queries, 
-                std::shared_ptr<VectorIndex> p_index, SearchStats* p_stats)
-            {
-                std::vector<COMMON::QueryResultSet<ValueType>> vecQueryResults;
-                 for(auto query : queries){
-                    vecQueryResults.push_back(*((COMMON::QueryResultSet<ValueType>*) &query));
-                 }
+
+            // Load from Disk Our implementation
+            virtual void LoadFromDisk(std::shared_ptr<ExtraWorkSpace> p_exWorkSpace, std::vector<int> p_posting_ids, 
+                                        std::queue<QueueData >& requests_data ) override {
                 
+                const uint32_t postingListCount = static_cast<uint32_t>(p_posting_ids.size());
+ 
                 int diskRead = 0;
                 int diskIO = 0;
                 int listElements = 0;
 
-                ListInfo* listInfo = &(m_listInfos[p_postingID]);
-                int fileid = m_oneContext? 0: p_postingID / m_listPerFile;
+#if defined(ASYNC_READ) && !defined(BATCH_READ)
+                int unprocessed = 0;
+#endif
+                //cout posting ids 
+                // std::cout << "\n\n\n -------------------Our Posting Ids-------------------\n";
+                // for (auto id : p_posting_ids) {
+                //    std::cout << id << " ";
+                // }
+                // std::cout << std::endl;
+                int request_index = 0;
+                for (auto pi : p_posting_ids)
+                {
+                    auto curPostingID = pi;
+                    ListInfo* listInfo = &(m_listInfos[curPostingID]);
+                    int fileid = m_oneContext? 0: curPostingID / m_listPerFile;
 
-                Helper::DiskIO* indexFile = m_indexFiles[fileid].get();
+#ifndef BATCH_READ
+                    Helper::DiskIO* indexFile = m_indexFiles[fileid].get();
+#endif
 
-                diskRead += listInfo->listPageCount;
-                diskIO += 1;
-                listElements += listInfo->listEleCount;
-                // std::cout << "************************\n";
-                // std::cout << "FileId: " << fileid << " PostingId: " << curPostingID << std::endl;
+                    diskRead += listInfo->listPageCount;
+                    diskIO += 1;
+                    listElements += listInfo->listEleCount;
+                    // std::cout << "************************\n";
+                    // std::cout << "FileId: " << fileid << " PostingId: " << curPostingID << std::endl;
+                    size_t totalBytes = (static_cast<size_t>(listInfo->listPageCount) << PageSizeEx);
+                    char* buffer = (char*)((p_exWorkSpace->m_pageBuffers[request_index]).GetBuffer());
 
-                size_t totalBytes = (static_cast<size_t>(listInfo->listPageCount) << PageSizeEx);   
-                char* buffer = (char*)((p_exWorkSpace->m_pageBuffers[p_postingID]).GetBuffer());
+#ifdef ASYNC_READ       
+                    auto& request = p_exWorkSpace->m_diskRequests[request_index];
+                    request.m_offset = listInfo->listOffset;
+                    request.m_readSize = totalBytes;
+                    request.m_buffer = buffer;
+                    request.m_status = (fileid << 16) | p_exWorkSpace->m_spaceID;
+                    request.m_payload = (void*)listInfo; 
+                    request.m_success = false;
 
-                auto& request = p_exWorkSpace->m_diskRequests[p_postingID];
-                request.m_offset = listInfo->listOffset;
-                request.m_readSize = totalBytes;
-                request.m_buffer = buffer;
-                request.m_status = (fileid << 16) | p_exWorkSpace->m_spaceID;
-                request.m_payload = (void*)listInfo; 
-                request.m_success = false;
-
-                request.m_callback = [&p_exWorkSpace, &vecQueryResults, &p_index, &request, p_postingID,this](bool success)
+#ifdef BATCH_READ // async batch read
+                    request.m_callback = [&p_exWorkSpace, &request, &requests_data ,pi, listElements ,this](bool success)
                     {
                         char* buffer = request.m_buffer;
                         ListInfo* listInfo = (ListInfo*)(request.m_payload);
 
                         // decompress posting list
                         char* p_postingListFullData = buffer + listInfo->pageOffset;
-                        if (m_enableDataCompression)
-                        {
-                            DecompressPosting();
-                        }
-
-                        for (int i = 0; i < listInfo->listEleCount; i++) { 
-                            uint64_t offsetVectorID, offsetVector;
-                            (this->*m_parsePosting)(offsetVectorID, offsetVector, i, listInfo->listEleCount);
-                            int vectorID = *(reinterpret_cast<int*>(p_postingListFullData + offsetVectorID));
-                            if (p_exWorkSpace->m_deduper.CheckAndSet(vectorID)) continue; 
-                            (this->*m_parseEncoding)(p_index, listInfo, (ValueType*)(p_postingListFullData + offsetVector));
-                            //queryResults.GetQuantizedTarget() is the target query
-                            //p_postingListFullData + offsetVector is vectors in centroid
-                            for(auto &query: vecQueryResults){
-                                auto distance2leaf = p_index->ComputeDistance(query.GetQuantizedTarget(), p_postingListFullData + offsetVector); 
-                                query.AddPoint(vectorID, distance2leaf); 
-                            }
-                        } 
+                        requests_data.push( {*(listInfo), pi ,p_postingListFullData});
+                        // std::cout << "-----------------CallBack-----------------\n";
+                        // std::cout << "Added clusterID in Queue: " << pi << std::endl;
                     };
+                    request_index++;
+                }
+#endif
+#endif
+                BatchReadFileAsync(m_indexFiles, (p_exWorkSpace->m_diskRequests).data(), postingListCount);
+            }
+            virtual void SearchInvertedIndex(ExtraWorkSpace* p_exWorkSpace, std::vector<QueryResult*> &queries, 
+                        SearchStats* p_stats, std::shared_ptr<VectorIndex> p_index, QueueData queueData) override
+            {
+                ListInfo &listInfo = queueData.listInfo;
+                char* p_postingListFullData = queueData.fullData;
 
-                BatchReadFileAsync(m_indexFiles, (p_exWorkSpace->m_diskRequests).data(), 1);
+                std::vector<COMMON::QueryResultSet<ValueType>*> vecQueryResults;
+                 for(auto& query : queries){
+                    vecQueryResults.push_back(((COMMON::QueryResultSet<ValueType>*) query));
+                 }
+                
+                for (int i = 0; i < listInfo.listEleCount; i++) { 
+                    uint64_t offsetVectorID, offsetVector;
+                            
+                    (this->*m_parsePosting)(offsetVectorID, offsetVector, i, listInfo.listEleCount);
+                            
+                    int vectorID = *(reinterpret_cast<int*>(p_postingListFullData + offsetVectorID));
+                     
+                    if (p_exWorkSpace->m_deduper.CheckAndSet(vectorID)) continue; 
+                            
+                    (this->*m_parseEncoding)(p_index, &listInfo, (ValueType*)(p_postingListFullData + offsetVector));
+                    //#pragma omp parallel for num_threads(4)
+                    for(auto &query: vecQueryResults){
+                        auto distance2leaf = p_index->ComputeDistance(query->GetQuantizedTarget(), p_postingListFullData + offsetVector);
+                        // std::cout << "Target: " << *query->GetQuantizedTarget() << " compared to: " << vectorID << " Distance: "  << distance2leaf <<std::endl;
+ 
+                        query->DeDupAddPoint(vectorID, distance2leaf); 
+                    }
+                } 
+                
+                
             }
             virtual void SearchIndex(ExtraWorkSpace* p_exWorkSpace,
                 QueryResult& p_queryResults,
@@ -267,11 +331,11 @@ namespace SPTAG
                 int unprocessed = 0;
 #endif
                 //cout posting ids 
-                std::cout << "\n\n\n -------------------Posting Ids-------------------\n";
-                for (auto id : p_exWorkSpace->m_postingIDs) {
-                   std::cout << id << " ";
-                }
-                std::cout << std::endl;
+                // std::cout << "\n\n\n -------------------Posting Ids-------------------\n";
+                // for (auto id : p_exWorkSpace->m_postingIDs) {
+                //    std::cout << id << " ";
+                // }
+                // std::cout << std::endl;
 
                 for (uint32_t pi = 0; pi < postingListCount; ++pi)
                 {
@@ -286,8 +350,8 @@ namespace SPTAG
                     diskRead += listInfo->listPageCount;
                     diskIO += 1;
                     listElements += listInfo->listEleCount;
-                    std::cout << "************************\n";
-                    std::cout << "FileId: " << fileid << " PostingId: " << curPostingID << std::endl;
+                    // std::cout << "************************\n";
+                    // std::cout << "FileId: " << fileid << " PostingId: " << curPostingID << std::endl;
                     size_t totalBytes = (static_cast<size_t>(listInfo->listPageCount) << PageSizeEx);
                     char* buffer = (char*)((p_exWorkSpace->m_pageBuffers[pi]).GetBuffer());
 
@@ -314,15 +378,15 @@ namespace SPTAG
                         }
 
                         // ProcessPosting();
-                        //Print nodes in centroid
+                        // Print nodes in centroid
                         // std::cout << "------------PostingID: " << p_exWorkSpace->m_postingIDs[pi] << "------------" << std::endl;
-                        // for(int i=0; i < listInfo->listEleCount; i++)
-                        // {
-                        //     uint64_t offsetVectorID, offsetVector;
-                        //     (this->*m_parsePosting)(offsetVectorID, offsetVector, i, listInfo->listEleCount);
-                        //     int vectorID = *(reinterpret_cast<int*>(p_postingListFullData + offsetVectorID));
-                        //     std::cout << vectorID << " ";
-                        // }
+                        for(int i=0; i < listInfo->listEleCount; i++)
+                        {
+                            uint64_t offsetVectorID, offsetVector;
+                            (this->*m_parsePosting)(offsetVectorID, offsetVector, i, listInfo->listEleCount);
+                            int vectorID = *(reinterpret_cast<int*>(p_postingListFullData + offsetVectorID));
+                            // std::cout << vectorID << " ";
+                        }
 
                         // std::cout << std::endl;
 
@@ -332,8 +396,7 @@ namespace SPTAG
                             int vectorID = *(reinterpret_cast<int*>(p_postingListFullData + offsetVectorID));
                             if (p_exWorkSpace->m_deduper.CheckAndSet(vectorID)) continue; 
                             (this->*m_parseEncoding)(p_index, listInfo, (ValueType*)(p_postingListFullData + offsetVector));
-                            //queryResults.GetQuantizedTarget() is the target query
-                            //p_postingListFullData + offsetVector is vectors in centroid
+                            
                             auto distance2leaf = p_index->ComputeDistance(queryResults.GetQuantizedTarget(), p_postingListFullData + offsetVector); 
                             queryResults.AddPoint(vectorID, distance2leaf); 
                         } 
@@ -374,7 +437,7 @@ namespace SPTAG
 
 #ifdef ASYNC_READ
 #ifdef BATCH_READ
-                std::cout << "HEREEEEEEEEE***************\n\n\n\n\n";
+                // std::cout << "HEREEEEEEEEE***************\n\n\n\n\n";
                 BatchReadFileAsync(m_indexFiles, (p_exWorkSpace->m_diskRequests).data(), postingListCount);
 #else
                 while (unprocessed > 0)
@@ -843,19 +906,17 @@ namespace SPTAG
                 return m_listInfos[postingID].listEleCount != 0;
             }
 
-        private:
-            struct ListInfo
+            ListInfo GetListInfo(SizeType postingID) override
             {
-                std::size_t listTotalBytes = 0;
-                
-                int listEleCount = 0;
+                if(postingID >= m_listInfos.size())
+                {
+                    throw std::runtime_error("Invalid postingID");
+                }
+                return m_listInfos[postingID];
+            }
 
-                std::uint16_t listPageCount = 0;
-
-                std::uint64_t listOffset = 0;
-
-                std::uint16_t pageOffset = 0;
-            };
+        private:
+            
 
             int LoadingHeadInfo(const std::string& p_file, int p_postingPageLimit, std::vector<ListInfo>& m_listInfos)
             {

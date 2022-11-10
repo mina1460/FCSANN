@@ -16,7 +16,23 @@
 
 namespace SPTAG {
     namespace SPANN {
+        struct ListInfo
+        {
+            std::size_t listTotalBytes = 0;
+            
+            int listEleCount = 0;
 
+            std::uint16_t listPageCount = 0;
+
+            std::uint64_t listOffset = 0;
+
+            std::uint16_t pageOffset = 0;
+        };
+        struct QueueData {
+            ListInfo listInfo;
+            int clusterID;
+            char* fullData;
+        };
         struct SearchStats
         {
             SearchStats()
@@ -176,14 +192,18 @@ namespace SPTAG {
                 std::set<int>* truth = nullptr,
                 std::map<int, std::set<int>>* found = nullptr) = 0;
 
-            virtual void SearchInvertedIndex(ExtraWorkSpace* p_exWorkSpace, int p_postingID, std::vector<QueryResult> &queries, 
-                std::shared_ptr<VectorIndex> p_index, SearchStats* p_stats);
+            virtual void SearchInvertedIndex(ExtraWorkSpace* p_exWorkSpace, std::vector<QueryResult*> &queries, 
+                        SearchStats* p_stats, std::shared_ptr<VectorIndex> p_index, QueueData queueData) {};
+
+            virtual void LoadFromDisk(std::shared_ptr<ExtraWorkSpace> p_exWorkSpace, std::vector<int> p_posting_ids, 
+                                        std::queue<QueueData>& requests_data ) {};
 
             virtual bool BuildIndex(std::shared_ptr<Helper::VectorSetReader>& p_reader, 
                 std::shared_ptr<VectorIndex> p_index, 
                 Options& p_opt) = 0;
 
             virtual bool CheckValidPosting(SizeType postingID) = 0;
+            virtual ListInfo GetListInfo(SizeType postingID){};
         };
     } // SPANN
 } // SPTAG

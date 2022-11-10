@@ -14,6 +14,7 @@
 #include <vector>
 #include <thread>
 #include <stdint.h>
+#include <iostream>
 
 #define ASYNC_READ 1
 
@@ -558,7 +559,12 @@ namespace SPTAG
 
             virtual std::uint64_t ReadBinary(std::uint64_t readSize, char* buffer, std::uint64_t offset = UINT64_MAX)
             {
-                return pread(m_fileHandle, (void*)buffer, readSize, offset);
+                int err = pread(m_fileHandle, (void*)buffer, readSize, offset);
+                if(err == -1){
+                    std::cout << "Failed to read: " << std::strerror(errno) << std::endl;
+                    std::cout << "Offset: " << offset << std::endl;
+                }
+                return err;
             }
 
             virtual std::uint64_t WriteBinary(std::uint64_t writeSize, const char* buffer, std::uint64_t offset = UINT64_MAX)
