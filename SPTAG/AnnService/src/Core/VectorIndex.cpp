@@ -284,6 +284,9 @@ VectorIndex::SaveIndex(std::string& p_config, const std::vector<ByteArray>& p_in
 ErrorCode
 VectorIndex::SaveIndex(const std::string& p_folderPath)
 {
+    std::cout << "Save index to " << p_folderPath << "\n";
+    std::cout << GetNumSamples() << " samples, " << GetNumDeleted() << " deleted, " << GetNumSamples() - GetNumDeleted() << " left\n";
+    std::cout << "ready: " << m_bReady << "\n";
     if (!m_bReady || GetNumSamples() - GetNumDeleted() == 0) return ErrorCode::EmptyIndex;
 
     std::string folderPath(p_folderPath);
@@ -293,6 +296,7 @@ VectorIndex::SaveIndex(const std::string& p_folderPath)
     }
     if (!direxists(folderPath.c_str()))
     {
+        std::cout << "Directory " << folderPath << " does not exist, create it \n";
         mkdir(folderPath.c_str());
     }
 

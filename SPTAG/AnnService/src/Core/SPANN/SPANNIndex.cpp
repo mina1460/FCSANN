@@ -375,7 +375,7 @@ namespace SPTAG
             auto end_time_after_fakasulo = std::chrono::high_resolution_clock::now();
             auto int_ms = std::chrono::duration_cast<std::chrono::milliseconds> (end_time_after_fakasulo - start_time_after_fakasulo) ;
             std::cout << "Fakasulo time without inverted index construction: " << int_ms.count() << std::endl; 
-            
+            return ErrorCode::Success;
         }
 
         template <typename T>

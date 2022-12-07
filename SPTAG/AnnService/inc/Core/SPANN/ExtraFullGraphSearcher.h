@@ -437,7 +437,6 @@ namespace SPTAG
 
 #ifdef ASYNC_READ
 #ifdef BATCH_READ
-                // std::cout << "HEREEEEEEEEE***************\n\n\n\n\n";
                 BatchReadFileAsync(m_indexFiles, (p_exWorkSpace->m_diskRequests).data(), postingListCount);
 #else
                 while (unprocessed > 0)

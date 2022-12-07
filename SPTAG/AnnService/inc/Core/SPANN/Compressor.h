@@ -5,7 +5,7 @@
 #define _SPTAG_SPANN_COMPRESSOR_H_
 
 #include <string>
-#include "zstd.h"
+#include <zstd.h>
 #include "zdict.h"
 #include "inc/Core/Common.h"
 
