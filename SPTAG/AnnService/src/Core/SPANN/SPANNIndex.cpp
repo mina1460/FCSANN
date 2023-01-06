@@ -198,6 +198,7 @@ namespace SPTAG
         {
             if (!m_bReady) return ErrorCode::EmptyIndex;
 
+            int posting_counter = 0;
             COMMON::QueryResultSet<T>* p_queryResults;
             if (p_query.GetResultNum() >= m_options.m_searchInternalResultNum) 
                 p_queryResults = (COMMON::QueryResultSet<T>*) & p_query;
@@ -213,6 +214,7 @@ namespace SPTAG
                 workSpace->m_postingIDs.clear();
 
                 float limitDist = p_queryResults->GetResult(0)->Dist * m_options.m_maxDistRatio;
+                // std::cout << "GetResultNum: " << p_queryResults->GetResultNum() << std::endl;
                 for (int i = 0; i < p_queryResults->GetResultNum(); ++i)
                 {
                     auto res = p_queryResults->GetResult(i);
@@ -231,8 +233,9 @@ namespace SPTAG
                         !m_extraSearcher->CheckValidPosting(postingID)) 
                         continue;
                     workSpace->m_postingIDs.emplace_back(postingID);
+                    posting_counter++;
                 }
-
+                // std::cout << "posting_counter: " << posting_counter << std::endl;
                 p_queryResults->Reverse();
                 m_extraSearcher->SearchIndex(workSpace.get(), *p_queryResults, m_index, nullptr);
                 m_workSpacePool->Return(workSpace);
@@ -256,11 +259,12 @@ namespace SPTAG
             }
             return ErrorCode::Success;
         }
-
         // Our implemention
         template<typename T>
         ErrorCode Index<T>::SearchIndex(std::vector<QueryResult> &queries, bool p_searchDeleted) const
         {
+            //time
+            auto start_time_search = std::chrono::high_resolution_clock::now();
             if (!m_bReady) return ErrorCode::EmptyIndex;
 
             std::vector<input_query> input_queries;
@@ -308,12 +312,19 @@ namespace SPTAG
                 }
 
             }
-            // Faksulo constructor is taking a copy from the input queries
-            Fakasulo fakasulo(input_queries);
+            auto end_time_search = std::chrono::high_resolution_clock::now();
+            std::cout << "Search before Fakasulo: " << std::chrono::duration_cast<std::chrono::milliseconds>(end_time_search-start_time_search).count() << std::endl;
+
+            //Time fakasulo module
+            auto start_time_fakasulo = std::chrono::high_resolution_clock::now();
+            Fakasulo_LL fakasulo(input_queries);
             fakasulo.process();
-            std::vector<inverted_index_node> inverted_index = fakasulo.get_inverted_index();
+            auto end_time_fakasulo = std::chrono::high_resolution_clock::now();
+            std::cout << "Fakasulo inverting time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end_time_fakasulo-start_time_fakasulo).count() << std::endl;
+            std::vector<int> inverted_index = fakasulo.get_inverted_index();
+
             // Different queries for invert
-            std::map<int, std::vector<SPTAG::QueryResult*>*> inverted_index_map = fakasulo.get_inverted_index_map();
+            std::map<int, std::list<std::vector<SPTAG::QueryResult*>>*> inverted_index_map = fakasulo.get_inverted_index_map();
             std::shared_ptr<ExtraWorkSpace> workSpace = nullptr;
             
             auto start_time_after_fakasulo = std::chrono::high_resolution_clock::now();
@@ -327,13 +338,13 @@ namespace SPTAG
             int loop_index = 0;
             while(loop_index < inverted_index.size()){
                 //read here the batch of clusters
-               
+
                 int read_count = std::min(BATCH_READ_COUNT, (int)inverted_index.size()-loop_index);
                 // prepare disk requests for batch read async 
 
                 std::vector<int> read_list(read_count); //Cluster_Ids to read
                 for(int j=0; j<read_count; j++){
-                    read_list[j] = inverted_index[loop_index+j].get_cluster_id();
+                    read_list[j] = inverted_index[loop_index+j];
                 } 
 
                 std::queue<QueueData >  readings;
