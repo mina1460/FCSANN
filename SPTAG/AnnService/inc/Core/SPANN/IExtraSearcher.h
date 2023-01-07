@@ -192,7 +192,7 @@ namespace SPTAG {
                 std::set<int>* truth = nullptr,
                 std::map<int, std::set<int>>* found = nullptr) = 0;
 
-            virtual void SearchInvertedIndex(ExtraWorkSpace* p_exWorkSpace, std::vector<QueryResult*> &queries, 
+            virtual void SearchInvertedIndex(ExtraWorkSpace* p_exWorkSpace, std::list<std::vector<QueryResult*>> &queries, 
                         SearchStats* p_stats, std::shared_ptr<VectorIndex> p_index, QueueData queueData) {};
 
             virtual void LoadFromDisk(std::shared_ptr<ExtraWorkSpace> p_exWorkSpace, std::vector<int> p_posting_ids, 

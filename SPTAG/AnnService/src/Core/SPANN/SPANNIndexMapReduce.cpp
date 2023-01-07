@@ -214,7 +214,7 @@ namespace SPTAG
                 workSpace->m_postingIDs.clear();
 
                 float limitDist = p_queryResults->GetResult(0)->Dist * m_options.m_maxDistRatio;
-                // std::cout << "GetResultNum: " << p_queryResults->GetResultNum() << std::endl;
+                std::cout << "GetResultNum: " << p_queryResults->GetResultNum() << std::endl;
                 for (int i = 0; i < p_queryResults->GetResultNum(); ++i)
                 {
                     auto res = p_queryResults->GetResult(i);
@@ -235,7 +235,7 @@ namespace SPTAG
                     workSpace->m_postingIDs.emplace_back(postingID);
                     posting_counter++;
                 }
-                // std::cout << "posting_counter: " << posting_counter << std::endl;
+                std::cout << "posting_counter: " << posting_counter << std::endl;
                 p_queryResults->Reverse();
                 m_extraSearcher->SearchIndex(workSpace.get(), *p_queryResults, m_index, nullptr);
                 m_workSpacePool->Return(workSpace);
@@ -261,97 +261,96 @@ namespace SPTAG
         }
 
         template<typename T>
-        ErrorCode Index<T>::reducer_launcher(std::map<int, std::list<std::vector<SPTAG::QueryResult*>>*> inverted_index_map, int num_threads)
-        const 
+        ErrorCode Index<T>::reducer_launcher(std::vector<std::map<int, std::list<std::vector<SPTAG::QueryResult*>>*>> inverted_index_map_vector, int num_threads)
         {
-            int map_size = inverted_index_map.size();
             #pragma omp parallel for schedule(dynamic, 1) num_threads(num_threads)
-            for (int i = 0; i < map_size; i++) {
-                auto it = inverted_index_map.begin();
-                std::pair<int, std::list<std::vector<SPTAG::QueryResult*>>*> p = *it;
-                reducer(p);
-                std::advance(it, 1);
+            for (int i = 0; i < inverted_index_map_vector.size(); i++){
+                reducer(inverted_index_map_vector[i]);
             }
-
             return ErrorCode::Success; 
         }
 
         template<typename T>
-        std::map<int, std::list<std::vector<SPTAG::QueryResult*>>*> Index<T>::merge_maps(std::vector<std::map<int, std::list<std::vector<SPTAG::QueryResult*>>*>> inverted_index_map_vector, int num_threads)
-        const
+        void merge_maps(std::vector<std::map<int, std::list<std::vector<SPTAG::QueryResult*>>*>> inverted_index_map_vector, int num_threads)
         {
-            auto merge_maps_start_time = std::chrono::high_resolution_clock::now();
             // We will just merge all maps in the first one with the best complexity
-            std::map<int, std::list<std::vector<SPTAG::QueryResult*>>*> wholeList = inverted_index_map_vector[0];
-            for(int map_number = 1 ; map_number < num_threads; map_number++)
+            std::vector<std::map<int, std::list<std::vector<SPTAG::QueryResult*>>*>> wholeList = inverted_index_map_vector[0];
+            for(int map_number = 1 ; i < num_threads; i++)
             {
                 for(auto it: inverted_index_map_vector[map_number])
                 {
                     // list1 += list2 in O(1) using splice 
-                    wholeList[it.first]->splice(wholeList[it.first]->end(), *it.second);
+                    wholeList[it.first].splice(wholeList[it.first].end(), it.second);
                 }
             }
-            auto merge_maps_end_time = std::chrono::high_resolution_clock::now();
-            auto merge_maps_duration = std::chrono::duration_cast<std::chrono::microseconds>(merge_maps_end_time - merge_maps_start_time);
-            // print merge maps duration in cyan
-            std::cout << "\033[1;36m" << "merge_maps_duration: \033[0m" << merge_maps_duration.count() << std::endl;
-            return wholeList; 
         }
 
         template<typename T>
-        ErrorCode Index<T>::reducer(std::pair<int, std::list<std::vector<SPTAG::QueryResult*>>*> inverted_index_map)
-        const
-        {
+        ErrorCode Index<T>::reducer(std::map<int, std::list<std::vector<SPTAG::QueryResult*>>*> inverted_index_map){
             std::shared_ptr<ExtraWorkSpace> workSpace = nullptr;
             
             auto start_time_after_fakasulo = std::chrono::high_resolution_clock::now();
             
-
-            std::vector<int> read_list; //Cluster_Ids to read
-            read_list.push_back(inverted_index_map.first);
-
-
-            std::queue<QueueData >  readings;
-            workSpace = m_workSpacePool->Rent();
-            workSpace->m_deduper.clear();
-            workSpace->m_postingIDs.clear();
-            m_extraSearcher->LoadFromDisk(workSpace,read_list, readings);
-            m_workSpacePool->Return(workSpace);
-
-                        
-            QueueData queueData = readings.front();
-        
-            workSpace = m_workSpacePool->Rent();
-            workSpace->m_deduper.clear();
-            workSpace->m_postingIDs.clear();
-
-            int cluster_id = queueData.clusterID;
-            workSpace->m_postingIDs.push_back(cluster_id);
-
+            for (auto& query: vecQueryResultSet)
+                    query->Reverse(); 
+                
             
-            readings.pop();
-            m_extraSearcher->SearchInvertedIndex(workSpace.get(), *(inverted_index_map.second),
-                nullptr, m_index, queueData);
-            
-            m_workSpacePool->Return(workSpace);
+            int loop_index = 0;
+            while(loop_index < inverted_index.size()){
+                //read here the batch of clusters
 
-            // for(auto& query: queries){
-            //     auto* qs = (COMMON::QueryResultSet<T>*) & query;
-            //     qs->SortResult();
-            // }
-            // auto end_time_after_fakasulo = std::chrono::high_resolution_clock::now();
-            // auto int_ms = std::chrono::duration_cast<std::chrono::milliseconds> (end_time_after_fakasulo - start_time_after_fakasulo) ;
-            // std::cout << "Fakasulo time without inverted index construction: " << int_ms.count() << std::endl; 
+                int read_count = std::min(BATCH_READ_COUNT, (int)inverted_index.size()-loop_index);
+                // prepare disk requests for batch read async 
+
+                std::vector<int> read_list(read_count); //Cluster_Ids to read
+                
+                for(int j=0; j<read_count; j++)
+                    read_list[j] = inverted_index[loop_index+j];
+
+                std::queue<QueueData >  readings;
+                workSpace = m_workSpacePool->Rent();
+                workSpace->m_deduper.clear();
+                workSpace->m_postingIDs.clear();
+                m_extraSearcher->LoadFromDisk(workSpace,read_list, readings);
+                m_workSpacePool->Return(workSpace);
+
+                    
+                int processed = 0;
+                while(processed < read_count){
+                    if(readings.empty()) continue;
+                    
+                    QueueData queueData = readings.front();
+                
+                    workSpace = m_workSpacePool->Rent();
+                    workSpace->m_deduper.clear();
+                    workSpace->m_postingIDs.clear();
+
+                    int cluster_id = queueData.clusterID;
+                    workSpace->m_postingIDs.push_back(cluster_id);
+
+                    
+                    readings.pop();
+                    m_extraSearcher->SearchInvertedIndex(workSpace.get(), *(inverted_index_map[cluster_id]),
+                        nullptr, m_index, queueData);
+                    
+                    processed++;
+                    m_workSpacePool->Return(workSpace);
+
+                }
+                loop_index += read_count;
+            }
+            for(auto& query: queries){
+                auto* qs = (COMMON::QueryResultSet<T>*) & query;
+                qs->SortResult();
+            }
+            auto end_time_after_fakasulo = std::chrono::high_resolution_clock::now();
+            auto int_ms = std::chrono::duration_cast<std::chrono::milliseconds> (end_time_after_fakasulo - start_time_after_fakasulo) ;
+            std::cout << "Fakasulo time without inverted index construction: " << int_ms.count() << std::endl; 
             return ErrorCode::Success;
-
         }
 
         template<typename T>
-        ErrorCode Index<T>::mapper_launcher(std::vector<QueryResult> &queries, int num_threads,
-        std::vector<std::map<int, std::list<std::vector<SPTAG::QueryResult*>>*>> &results)
-        const
-        {
-            auto mapper_launcher_start_time = std::chrono::high_resolution_clock::now();
+        ErrorCode Index<T>::mapper_launcher(std::vector<QueryResult> &queries, int num_threads){
             int index = 0;
             
             std::vector<std::future<std::map<int, std::list<std::vector<SPTAG::QueryResult*>>*>>> futures;
@@ -363,106 +362,23 @@ namespace SPTAG
                 futures.push_back(std::async(std::launch::async, &Index<T>::mapper, this, std::ref(queries), start, end));
                 index += chunk_size;
             }
-
+            std::vector<std:map<int, std::list<std::vector<SPTAG::QueryResult*>>*>> results;
             for (int i = 0; i < num_threads; i++){
                 results.push_back(futures[i].get());
             }
-            results.push_back(mapper(queries, 0, queries.size()));
-            
-            auto mapper_launcher_end_time = std::chrono::high_resolution_clock::now();
-            auto int_ms = std::chrono::duration_cast<std::chrono::milliseconds> (mapper_launcher_end_time - mapper_launcher_start_time) ;
-            //Print mapper launcher time in cyan
-            std::cout << "\033[1;36m" << "Mapper launcher time: \033[0m" << int_ms.count() << std::endl;
             return ErrorCode::Success;
         }
 
         template<typename T>
-        std::map<int, std::list<std::vector<SPTAG::QueryResult*>>*> Index<T>::mapper(std::vector<QueryResult> &queries, int start, int end)
-        const
-        {
-            //time
-            auto start_time_search = std::chrono::high_resolution_clock::now();
-            if (!m_bReady) return std::map<int, std::list<std::vector<SPTAG::QueryResult*>>*>();
-
-            std::vector<input_query> input_queries;
-            std::vector< COMMON::QueryResultSet<T>* > vecQueryResultSet;
-            std::set<int> cluster_ids;
-            for (int query = start; query < end; query++){
-               
-                QueryResult &p_query = queries[query];
-                if (p_query.GetResultNum() >= m_options.m_searchInternalResultNum) 
-                    vecQueryResultSet.push_back( (COMMON::QueryResultSet<T>*) & p_query );
-                else
-                    vecQueryResultSet.push_back( new COMMON::QueryResultSet<T>((const T*)p_query.GetTarget(), m_options.m_searchInternalResultNum) );
-
-                COMMON::QueryResultSet<T>* p_queryResults = vecQueryResultSet[query];
-                m_index->SearchIndex(*p_queryResults);
-                
-                std::shared_ptr<ExtraWorkSpace> workSpace = nullptr;
-                if (m_extraSearcher != nullptr) {
-                    workSpace = m_workSpacePool->Rent();
-                    workSpace->m_deduper.clear();
-                    workSpace->m_postingIDs.clear();
-
-                    float limitDist = p_queryResults->GetResult(0)->Dist * m_options.m_maxDistRatio;
-                    for (int i = 0; i < p_queryResults->GetResultNum(); ++i)
-                    {
-                        auto res = p_queryResults->GetResult(i);
-                        if (res->VID == -1) break;
-
-                        auto postingID = res->VID;
-                        res->VID = static_cast<SizeType>((m_vectorTranslateMap.get())[res->VID]);
-                        if (res->VID == MaxSize) {
-                            res->VID = -1;
-                            res->Dist = MaxDist;
-                        }
-
-                        // Don't do disk reads for irrelevant pages
-                        if (workSpace->m_postingIDs.size() >= m_options.m_searchInternalResultNum || 
-                            (limitDist > 0.1 && res->Dist > limitDist) || 
-                            !m_extraSearcher->CheckValidPosting(postingID)) 
-                            continue;
-                        workSpace->m_postingIDs.emplace_back(postingID);
-                    }
-                    //We are pushing a copy of the input query
-                    input_queries.push_back(input_query(query, queries[query] ,workSpace->m_postingIDs));
-                    // add postingsIDs to set
-                    for (auto& postingID: workSpace->m_postingIDs){
-                        cluster_ids.insert(postingID);
-                    }
-                    m_workSpacePool->Return(workSpace);
-                }
-
-            }
-            auto end_time_search = std::chrono::high_resolution_clock::now();
-            std::cout << "Search before Fakasulo: " << std::chrono::duration_cast<std::chrono::milliseconds>(end_time_search-start_time_search).count() << " ms" << std::endl;
-
-            //Time fakasulo module
-            auto start_time_fakasulo = std::chrono::high_resolution_clock::now();
-            Fakasulo_LL fakasulo(input_queries);
-            fakasulo.process();
-            auto end_time_fakasulo = std::chrono::high_resolution_clock::now();
-            std::cout << "Fakasulo inverting time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end_time_fakasulo-start_time_fakasulo).count() << " ms" << std::endl;
-            // std::vector<int> inverted_index = fakasulo.get_inverted_index();
-
-            // Different queries for invert
-            std::map<int, std::list<std::vector<SPTAG::QueryResult*>>*> inverted_index_map = fakasulo.get_inverted_index_map();
-            return inverted_index_map;
-        }
-
-        // Our implemention
-        
-        template<typename T>
-        ErrorCode Index<T>::SearchIndex(std::vector<QueryResult> &queries, bool p_searchDeleted) const
-        {
+        std::map<int, std::list<std::vector<SPTAG::QueryResult*>>*>::mapper(std::vector<QueryResult> &queries, int start, int end){
             //time
             auto start_time_search = std::chrono::high_resolution_clock::now();
             if (!m_bReady) return ErrorCode::EmptyIndex;
 
             std::vector<input_query> input_queries;
             std::vector< COMMON::QueryResultSet<T>* > vecQueryResultSet;
-            for (int query =0; query<queries.size(); query++)
-            {
+            for (int query = start; query < end; query++){
+               
                 QueryResult &p_query = queries[query];
                 if (p_query.GetResultNum() >= m_options.m_searchInternalResultNum) 
                     vecQueryResultSet.push_back( (COMMON::QueryResultSet<T>*) & p_query );
@@ -517,94 +433,138 @@ namespace SPTAG
 
             // Different queries for invert
             std::map<int, std::list<std::vector<SPTAG::QueryResult*>>*> inverted_index_map = fakasulo.get_inverted_index_map();
-            std::shared_ptr<ExtraWorkSpace> workSpace = nullptr;
-            
-            auto start_time_after_fakasulo = std::chrono::high_resolution_clock::now();
-            
-            for (auto& query: vecQueryResultSet)
-                {
-                    query->Reverse(); 
-                }
-                
-            
-            int loop_index = 0;
-            while(loop_index < inverted_index.size()){
-                //read here the batch of clusters
-
-                int read_count = std::min(BATCH_READ_COUNT, (int)inverted_index.size()-loop_index);
-                // prepare disk requests for batch read async 
-
-                std::vector<int> read_list(read_count); //Cluster_Ids to read
-                for(int j=0; j<read_count; j++){
-                    read_list[j] = inverted_index[loop_index+j];
-                } 
-
-                std::queue<QueueData >  readings;
-                workSpace = m_workSpacePool->Rent();
-                workSpace->m_deduper.clear();
-                workSpace->m_postingIDs.clear();
-                m_extraSearcher->LoadFromDisk(workSpace,read_list, readings);
-                m_workSpacePool->Return(workSpace);
-
-                    
-                int processed = 0;
-                while(processed < read_count){
-                    if(readings.empty()) continue;
-                    
-                    QueueData queueData = readings.front();
-                
-                    workSpace = m_workSpacePool->Rent();
-                    workSpace->m_deduper.clear();
-                    workSpace->m_postingIDs.clear();
-
-                    int cluster_id = queueData.clusterID;
-                    workSpace->m_postingIDs.push_back(cluster_id);
-
-                    
-                    readings.pop();
-                    m_extraSearcher->SearchInvertedIndex(workSpace.get(), *(inverted_index_map[cluster_id]),
-                        nullptr, m_index, queueData);
-                    
-                    processed++;
-                    m_workSpacePool->Return(workSpace);
-
-                }
-                loop_index += read_count;
-            }
-            for(auto& query: queries){
-                auto* qs = (COMMON::QueryResultSet<T>*) & query;
-                qs->SortResult();
-            }
-            auto end_time_after_fakasulo = std::chrono::high_resolution_clock::now();
-            auto int_ms = std::chrono::duration_cast<std::chrono::milliseconds> (end_time_after_fakasulo - start_time_after_fakasulo) ;
-            std::cout << "Fakasulo time without inverted index construction: " << int_ms.count() << std::endl; 
-            return ErrorCode::Success;
+            return inverted_index_map;
         }
 
-        // Mapper Reducer Implementation
+        // // Our implemention
         // template<typename T>
         // ErrorCode Index<T>::SearchIndex(std::vector<QueryResult> &queries, bool p_searchDeleted) const
         // {
         //     //time
         //     auto start_time_search = std::chrono::high_resolution_clock::now();
         //     if (!m_bReady) return ErrorCode::EmptyIndex;
-            
-        //     int num_of_threads = 1;
-        //     std::vector<std::map<int, std::list<std::vector<SPTAG::QueryResult*>>*>> results;
-        //     mapper_launcher(queries, num_of_threads, results);
-        //     auto merged_map = merge_maps(results, num_of_threads);
-        //     reducer_launcher(merged_map, num_of_threads);
 
+        //     std::vector<input_query> input_queries;
+        //     std::vector< COMMON::QueryResultSet<T>* > vecQueryResultSet;
+        //     for (int query =0; query<queries.size(); query++)
+        //     {
+        //         QueryResult &p_query = queries[query];
+        //         if (p_query.GetResultNum() >= m_options.m_searchInternalResultNum) 
+        //             vecQueryResultSet.push_back( (COMMON::QueryResultSet<T>*) & p_query );
+        //         else
+        //             vecQueryResultSet.push_back( new COMMON::QueryResultSet<T>((const T*)p_query.GetTarget(), m_options.m_searchInternalResultNum) );
+
+        //         COMMON::QueryResultSet<T>* p_queryResults = vecQueryResultSet[query];
+        //         m_index->SearchIndex(*p_queryResults);
+                
+        //         std::shared_ptr<ExtraWorkSpace> workSpace = nullptr;
+        //         if (m_extraSearcher != nullptr) {
+        //             workSpace = m_workSpacePool->Rent();
+        //             workSpace->m_deduper.clear();
+        //             workSpace->m_postingIDs.clear();
+
+        //             float limitDist = p_queryResults->GetResult(0)->Dist * m_options.m_maxDistRatio;
+        //             for (int i = 0; i < p_queryResults->GetResultNum(); ++i)
+        //             {
+        //                 auto res = p_queryResults->GetResult(i);
+        //                 if (res->VID == -1) break;
+
+        //                 auto postingID = res->VID;
+        //                 res->VID = static_cast<SizeType>((m_vectorTranslateMap.get())[res->VID]);
+        //                 if (res->VID == MaxSize) {
+        //                     res->VID = -1;
+        //                     res->Dist = MaxDist;
+        //                 }
+
+        //                 // Don't do disk reads for irrelevant pages
+        //                 if (workSpace->m_postingIDs.size() >= m_options.m_searchInternalResultNum || 
+        //                     (limitDist > 0.1 && res->Dist > limitDist) || 
+        //                     !m_extraSearcher->CheckValidPosting(postingID)) 
+        //                     continue;
+        //                 workSpace->m_postingIDs.emplace_back(postingID);
+        //             }
+        //             //We are pushing a copy of the input query
+        //             input_queries.push_back(input_query(query, queries[query] ,workSpace->m_postingIDs));
+        //             m_workSpacePool->Return(workSpace);
+        //         }
+
+        //     }
+        //     auto end_time_search = std::chrono::high_resolution_clock::now();
+        //     std::cout << "Search before Fakasulo: " << std::chrono::duration_cast<std::chrono::milliseconds>(end_time_search-start_time_search).count() << std::endl;
+
+        //     //Time fakasulo module
+        //     auto start_time_fakasulo = std::chrono::high_resolution_clock::now();
+        //     Fakasulo_LL fakasulo(input_queries);
+        //     fakasulo.process();
+        //     auto end_time_fakasulo = std::chrono::high_resolution_clock::now();
+        //     std::cout << "Fakasulo inverting time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end_time_fakasulo-start_time_fakasulo).count() << std::endl;
+        //     std::vector<int> inverted_index = fakasulo.get_inverted_index();
+
+        //     // Different queries for invert
+        //     std::map<int, std::list<std::vector<SPTAG::QueryResult*>>*> inverted_index_map = fakasulo.get_inverted_index_map();
+        //     std::shared_ptr<ExtraWorkSpace> workSpace = nullptr;
+            
+        //     auto start_time_after_fakasulo = std::chrono::high_resolution_clock::now();
+            
+        //     for (auto& query: vecQueryResultSet)
+        //         {
+        //             query->Reverse(); 
+        //         }
+                
+            
+        //     int loop_index = 0;
+        //     while(loop_index < inverted_index.size()){
+        //         //read here the batch of clusters
+
+        //         int read_count = std::min(BATCH_READ_COUNT, (int)inverted_index.size()-loop_index);
+        //         // prepare disk requests for batch read async 
+
+        //         std::vector<int> read_list(read_count); //Cluster_Ids to read
+        //         for(int j=0; j<read_count; j++){
+        //             read_list[j] = inverted_index[loop_index+j];
+        //         } 
+
+        //         std::queue<QueueData >  readings;
+        //         workSpace = m_workSpacePool->Rent();
+        //         workSpace->m_deduper.clear();
+        //         workSpace->m_postingIDs.clear();
+        //         m_extraSearcher->LoadFromDisk(workSpace,read_list, readings);
+        //         m_workSpacePool->Return(workSpace);
+
+                    
+        //         int processed = 0;
+        //         while(processed < read_count){
+        //             if(readings.empty()) continue;
+                    
+        //             QueueData queueData = readings.front();
+                
+        //             workSpace = m_workSpacePool->Rent();
+        //             workSpace->m_deduper.clear();
+        //             workSpace->m_postingIDs.clear();
+
+        //             int cluster_id = queueData.clusterID;
+        //             workSpace->m_postingIDs.push_back(cluster_id);
+
+                    
+        //             readings.pop();
+        //             m_extraSearcher->SearchInvertedIndex(workSpace.get(), *(inverted_index_map[cluster_id]),
+        //                 nullptr, m_index, queueData);
+                    
+        //             processed++;
+        //             m_workSpacePool->Return(workSpace);
+
+        //         }
+        //         loop_index += read_count;
+        //     }
         //     for(auto& query: queries){
         //         auto* qs = (COMMON::QueryResultSet<T>*) & query;
         //         qs->SortResult();
         //     }
         //     auto end_time_after_fakasulo = std::chrono::high_resolution_clock::now();
-        //     // auto int_ms = std::chrono::duration_cast<std::chrono::milliseconds> (end_time_after_fakasulo - start_time_after_fakasulo) ;
-        //     // std::cout << "Fakasulo time without inverted index construction: " << int_ms.count() << std::endl; 
+        //     auto int_ms = std::chrono::duration_cast<std::chrono::milliseconds> (end_time_after_fakasulo - start_time_after_fakasulo) ;
+        //     std::cout << "Fakasulo time without inverted index construction: " << int_ms.count() << std::endl; 
         //     return ErrorCode::Success;
         // }
-
 
         template <typename T>
         ErrorCode Index<T>::SearchDiskIndex(QueryResult& p_query, SearchStats* p_stats) const

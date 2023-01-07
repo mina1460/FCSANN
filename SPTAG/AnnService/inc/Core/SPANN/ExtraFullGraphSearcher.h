@@ -15,7 +15,7 @@
 #include <climits>
 #include <future>
 #include <numeric>
-
+#include "Faksulo.h"
 namespace SPTAG
 {
     namespace SPANN
@@ -281,17 +281,36 @@ namespace SPTAG
 #endif
                 BatchReadFileAsync(m_indexFiles, (p_exWorkSpace->m_diskRequests).data(), postingListCount);
             }
-            virtual void SearchInvertedIndex(ExtraWorkSpace* p_exWorkSpace, std::vector<QueryResult*> &queries, 
+            virtual void SearchInvertedIndex(ExtraWorkSpace* p_exWorkSpace, std::list<std::vector<QueryResult*>> &queries, 
                         SearchStats* p_stats, std::shared_ptr<VectorIndex> p_index, QueueData queueData) override
             {
                 ListInfo &listInfo = queueData.listInfo;
                 char* p_postingListFullData = queueData.fullData;
 
                 std::vector<COMMON::QueryResultSet<ValueType>*> vecQueryResults;
-                 for(auto& query : queries){
-                    vecQueryResults.push_back(((COMMON::QueryResultSet<ValueType>*) query));
+                 //count the list of queries
+                int queryCount = queries.size();
+                int mxNumberVectors = queryCount * MxVectorSize;
+                vecQueryResults.reserve(mxNumberVectors);
+                if(vecQueryResults.capacity() != mxNumberVectors) {
+                    std::cout << "Error: vecQueryResults.reserve() failed" << std::endl;
+                    exit(1);
+                }
+                // print postings ids
+                    std::cout << "\n\n\n -------------------Posting Ids-------------------\n";
+                    for (auto id : p_exWorkSpace->m_postingIDs) {
+                        std::cout << id << " ";
+                    }
+                    std::cout << std::endl;                
+
+
+                 int idx = 0;
+                 for(auto v_queries : queries){
+                    for(auto& query : v_queries){
+                        vecQueryResults.push_back(((COMMON::QueryResultSet<ValueType>*) query));
+                    }
                  }
-                
+            
                 for (int i = 0; i < listInfo.listEleCount; i++) { 
                     uint64_t offsetVectorID, offsetVector;
                             
@@ -305,13 +324,11 @@ namespace SPTAG
                     //#pragma omp parallel for num_threads(4)
                     for(auto &query: vecQueryResults){
                         auto distance2leaf = p_index->ComputeDistance(query->GetQuantizedTarget(), p_postingListFullData + offsetVector);
-                        // std::cout << "Target: " << *query->GetQuantizedTarget() << " compared to: " << vectorID << " Distance: "  << distance2leaf <<std::endl;
+                        std::cout << "Target: " << *query->GetQuantizedTarget() << " compared to: " << vectorID << " Distance: "  << distance2leaf <<std::endl;
  
                         query->DeDupAddPoint(vectorID, distance2leaf); 
                     }
                 } 
-                
-                
             }
             virtual void SearchIndex(ExtraWorkSpace* p_exWorkSpace,
                 QueryResult& p_queryResults,
@@ -320,7 +337,7 @@ namespace SPTAG
                 std::set<int>* truth, std::map<int, std::set<int>>* found)
             {
                 const uint32_t postingListCount = static_cast<uint32_t>(p_exWorkSpace->m_postingIDs.size());
-
+                // std::cout << "PostingListCount: " << postingListCount << std::endl;
                 COMMON::QueryResultSet<ValueType>& queryResults = *((COMMON::QueryResultSet<ValueType>*)&p_queryResults);
  
                 int diskRead = 0;
@@ -331,11 +348,11 @@ namespace SPTAG
                 int unprocessed = 0;
 #endif
                 //cout posting ids 
-                // std::cout << "\n\n\n -------------------Posting Ids-------------------\n";
-                // for (auto id : p_exWorkSpace->m_postingIDs) {
-                //    std::cout << id << " ";
-                // }
-                // std::cout << std::endl;
+                std::cout << "\n\n\n -------------------Posting Ids-------------------\n";
+                for (auto id : p_exWorkSpace->m_postingIDs) {
+                   std::cout << id << " ";
+                }
+                std::cout << std::endl;
 
                 for (uint32_t pi = 0; pi < postingListCount; ++pi)
                 {
@@ -398,10 +415,13 @@ namespace SPTAG
                             (this->*m_parseEncoding)(p_index, listInfo, (ValueType*)(p_postingListFullData + offsetVector));
                             
                             auto distance2leaf = p_index->ComputeDistance(queryResults.GetQuantizedTarget(), p_postingListFullData + offsetVector); 
+                            // print target
+                            std::cout << "Target: " << (*(queryResults.GetQuantizedTarget())) << " compared to: " << vectorID << " Distance: "  << distance2leaf <<std::endl;
+                            if (vectorID == 27)
+                                std::cout << " HOWWWWWWWW !!!! ??? "<<std::endl;
+                                
                             queryResults.AddPoint(vectorID, distance2leaf); 
                         } 
-
-
                     };
 #else // async read
                     request.m_callback = [&p_exWorkSpace, &request](bool success)
