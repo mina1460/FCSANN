@@ -12,3 +12,5 @@
 *.vsix
 
 *.DS_Store
+SPTAG/Release/*
+SPTAG/Debug/*

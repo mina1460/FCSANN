@@ -290,8 +290,8 @@ namespace SPTAG
                 std::vector<COMMON::QueryResultSet<ValueType>*> vecQueryResults;
                  for(auto& query : queries){
                     vecQueryResults.push_back(((COMMON::QueryResultSet<ValueType>*) query));
-                 }
-                
+                }
+                                
                 for (int i = 0; i < listInfo.listEleCount; i++) { 
                     uint64_t offsetVectorID, offsetVector;
                             
@@ -299,14 +299,13 @@ namespace SPTAG
                             
                     int vectorID = *(reinterpret_cast<int*>(p_postingListFullData + offsetVectorID));
                      
-                    if (p_exWorkSpace->m_deduper.CheckAndSet(vectorID)) continue; 
+                    // if (p_exWorkSpace->m_deduper.CheckAndSet(vectorID)) continue; 
                             
                     (this->*m_parseEncoding)(p_index, &listInfo, (ValueType*)(p_postingListFullData + offsetVector));
                     //#pragma omp parallel for num_threads(4)
                     for(auto &query: vecQueryResults){
                         auto distance2leaf = p_index->ComputeDistance(query->GetQuantizedTarget(), p_postingListFullData + offsetVector);
                         // std::cout << "Target: " << *query->GetQuantizedTarget() << " compared to: " << vectorID << " Distance: "  << distance2leaf <<std::endl;
- 
                         query->DeDupAddPoint(vectorID, distance2leaf); 
                     }
                 } 
@@ -330,12 +329,7 @@ namespace SPTAG
 #if defined(ASYNC_READ) && !defined(BATCH_READ)
                 int unprocessed = 0;
 #endif
-                //cout posting ids 
-                // std::cout << "\n\n\n -------------------Posting Ids-------------------\n";
-                // for (auto id : p_exWorkSpace->m_postingIDs) {
-                //    std::cout << id << " ";
-                // }
-                // std::cout << std::endl;
+                
 
                 for (uint32_t pi = 0; pi < postingListCount; ++pi)
                 {
@@ -398,6 +392,7 @@ namespace SPTAG
                             (this->*m_parseEncoding)(p_index, listInfo, (ValueType*)(p_postingListFullData + offsetVector));
                             
                             auto distance2leaf = p_index->ComputeDistance(queryResults.GetQuantizedTarget(), p_postingListFullData + offsetVector); 
+                            // std::cout << "Target: " << *(queryResults.GetQuantizedTarget()) << " compared to: " << vectorID << " Distance: "  << distance2leaf <<std::endl;
                             queryResults.AddPoint(vectorID, distance2leaf); 
                         } 
 

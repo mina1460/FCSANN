@@ -86,10 +86,34 @@ void ThreadedSearch(std::shared_ptr<SPTAG::VectorIndex> &vecIndex, std::vector<s
      vecIndex->SearchIndex(queries[i]);
 }
 
+bool SanityCheck(std::vector<SPTAG::QueryResult> FakasuloRes, std::vector<SPTAG::QueryResult> SptagRes, int k)
+{
+        if(FakasuloRes.size() != SptagRes.size())
+        {
+            std::cout << "Results not size \n";
+            return false;
+        }
+        int counter = 0;
+        for(int i=0; i<FakasuloRes.size(); i++)
+        {
+            for(int j=0; j < k; j++){
+                
+                if(FakasuloRes[i].GetResult(j)->VID != SptagRes[i].GetResult(j)->VID){
+                    std::cout << "Diff VID at Query: " << i << " at k neighbour: " << j << std::endl;
+                    std::cout << "SPTAG VID: " << SptagRes[i].GetResult(j)->VID << std::endl;
+                    std::cout << "Fakasulo VID: " << FakasuloRes[i].GetResult(j)->VID << std::endl;
+                    counter++;
+                    break;
+                }                
+            }
+        }
+        std::cout << " NUM OF DIFF: " << counter << std::endl;
+}
+
 template <typename T>
 void Search(const std::string folder, T* vec, SPTAG::SizeType n, int k, std::string* truthmeta)
 {
-    int num_threads = 16;
+    int num_threads = 1;
     std::thread threadPool[num_threads];
     std::shared_ptr<SPTAG::VectorIndex> vecIndex;
     BOOST_CHECK(SPTAG::ErrorCode::Success == SPTAG::VectorIndex::LoadIndex(folder, vecIndex));
@@ -97,7 +121,8 @@ void Search(const std::string folder, T* vec, SPTAG::SizeType n, int k, std::str
 
     auto start_sptag_time = std::chrono::high_resolution_clock::now();
     std::vector<std::vector<SPTAG::QueryResult>> queries(num_threads, std::vector<SPTAG::QueryResult>());
-    
+    std::vector<SPTAG::QueryResult> SptagRes;
+    std::vector<SPTAG::QueryResult> FakasuloRes;
     for (SPTAG::SizeType i = 0; i < n; i++) 
     {
         int index = i * num_threads / n; 
@@ -105,8 +130,9 @@ void Search(const std::string folder, T* vec, SPTAG::SizeType n, int k, std::str
         queries[index].push_back(res);
         // /*
         vecIndex->SearchIndex(res);
+        SptagRes.push_back(res);
         std::unordered_set<std::string> resmeta;
-        // /*
+        /*
         std::cout << "SPTAG query: " << i << "+";
         for (int j = 0; j < k; j++)
         {
@@ -114,7 +140,7 @@ void Search(const std::string folder, T* vec, SPTAG::SizeType n, int k, std::str
             std::cout << res.GetResult(j)->Dist << "@(" << res.GetResult(j)->VID << "," << std::string((char*)res.GetMetadata(j).Data(), res.GetMetadata(j).Length()) << ") ";
         }
         std::cout << std::endl;
-        // */
+        */
         
         vec += vecIndex->GetFeatureDim();
     }
@@ -133,21 +159,27 @@ void Search(const std::string folder, T* vec, SPTAG::SizeType n, int k, std::str
     }
 
     end_sptag_time = std::chrono::high_resolution_clock::now();
+    int_ms = std::chrono::duration_cast<std::chrono::milliseconds> (end_sptag_time - start_sptag_time) ;
+    std::cout << "Fakasulo time: " << int_ms.count() << std::endl; 
     int our_index = 0;
+
     for(auto& queries_sub: queries){
         for(auto& query: queries_sub){
-        std::cout << "Fakasulo query: " << our_index++ << "+";
-         for (int j = 0; j < k; j++)
-            {
+        // std::cout << "Fakasulo query: " << our_index++ << "+";
+        //  for (int j = 0; j < k; j++)
+        //     {
                 
-                std::cout << query.GetResult(j)->Dist << "@(" << query.GetResult(j)->VID << "," << query.GetResult(j)->VID << ") ";
-            }
-            std::cout << "\n";
+        //         std::cout << query.GetResult(j)->Dist << "@(" << query.GetResult(j)->VID << "," << query.GetResult(j)->VID << ") ";
+        //     }
+        //     std::cout << "\n";
+                FakasuloRes.push_back(query);
             }
     }
     
-    int_ms = std::chrono::duration_cast<std::chrono::milliseconds> (end_sptag_time - start_sptag_time) ;
-    std::cout << "Fakasulo time: " << int_ms.count() << std::endl; 
+
+    std::cout << " ------------Sanity Check------------ \n"; 
+    SanityCheck(FakasuloRes, SptagRes, k);
+    
     vecIndex.reset();
 }
 
@@ -206,9 +238,9 @@ template <typename T>
 void Test(SPTAG::IndexAlgoType algo, std::string distCalcMethod)
 {
     
-    SPTAG::SizeType n = 2000, q = 10;
-    SPTAG::DimensionType m = 10;
-    int k = 10;
+    SPTAG::SizeType n = 50000, q = 1000;
+    SPTAG::DimensionType m = 5;
+    int k = 5;
     std::vector<T> vec;
     // std::cout << "--------------Vec--------------------\n\n";
     for (SPTAG::SizeType i = 0; i < n; i++) {
@@ -252,7 +284,7 @@ void Test(SPTAG::IndexAlgoType algo, std::string distCalcMethod)
         SPTAG::ByteArray((std::uint8_t*)metaoffset.data(), metaoffset.size() * sizeof(std::uint64_t), false),
         n));
     
-    Build<T>(algo, distCalcMethod, vecset, metaset, "testindices");
+    // Build<T>(algo, distCalcMethod, vecset, metaset, "testindices");
     std::string truthmeta1[] = { "0", "1", "2", "2", "1", "3", "4", "3", "5" };
     Search<T>("testindices", query.data(), q, k, truthmeta1);
     exit(0);

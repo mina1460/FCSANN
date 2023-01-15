@@ -2,9 +2,8 @@
 # Licensed under the MIT License.
 
 cmake_minimum_required (VERSION 3.12)
-
+add_definitions(-w)
 project (SPTAGLib)
-
 function(CXX_COMPILER_DUMPVERSION _OUTPUT_VERSION)
   exec_program(${CMAKE_CXX_COMPILER}
     ARGS ${CMAKE_CXX_COMPILER_ARG1} -dumpversion

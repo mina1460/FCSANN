@@ -3,6 +3,7 @@
 
 #include "inc/CoreInterface.h"
 #include "inc/Helper/StringConvert.h"
+#include <chrono>
 
 
 AnnIndex::AnnIndex(DimensionType p_dimension)
@@ -76,12 +77,19 @@ AnnIndex::BuildSPANNWithMetaData(ByteArray p_meta, SizeType p_num, bool p_withMe
 bool
 AnnIndex::Build(ByteArray p_data, SizeType p_num, bool p_normalized)
 {
+
     if (nullptr == m_index)
     {
         m_index = SPTAG::VectorIndex::CreateInstance(m_algoType, m_inputValueType);
     }
     if (nullptr == m_index || p_num == 0 || m_dimension == 0 || p_data.Length() != p_num * m_inputVectorSize)
     {
+        std::cout << "Build failed----------------------------" << std::endl;
+        std::cout << "p_num: " << p_num << std::endl;
+        std::cout << "m_dimension: " << m_dimension << std::endl;
+        std::cout << "p_data.Length(): " << p_data.Length() << std::endl;
+        std::cout << "m_inputVectorSize: " << m_inputVectorSize << std::endl;
+
         return false;
     }
     return (SPTAG::ErrorCode::Success == m_index->BuildIndex(p_data.Data(), (SPTAG::SizeType)p_num, (SPTAG::DimensionType)m_dimension, p_normalized));
@@ -203,6 +211,44 @@ AnnIndex::BatchSearch(ByteArray p_data, int p_vectorNum, int p_resultNum, bool p
     return std::move(results);
 }
 
+std::vector<QueryResult>
+AnnIndex::FakasuloSearch(ByteArray p_data, int p_vectorNum, int p_resultNum, bool p_withMetaData)
+{ 
+
+    std::vector<QueryResult> input_queries;
+    input_queries.reserve(p_vectorNum); 
+    std::cout << "vectorSize: " << m_inputVectorSize << "\n";
+    for (int i = 0; i < p_vectorNum; i++) {
+        QueryResult q_result = QueryResult(p_data.Data() + i * m_inputVectorSize, p_resultNum, p_withMetaData);
+        input_queries.push_back(q_result);
+    }
+    auto start = std::chrono::high_resolution_clock::now();
+    if (nullptr != m_index)
+    {
+        std::cout << "Start search \n";
+        m_index->SearchIndex(input_queries, true);
+    }
+    auto finish = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = finish - start;
+    std::cout << "Elapsed time: " << elapsed.count() << " s\n";
+
+    
+    int our_index = 0;
+    int k= p_resultNum;
+    
+    // for(auto& query: input_queries){
+    // std::cout << "Fakasulo query: " << our_index++ << "+";
+    //     for (int j = 0; j < k; j++)
+    //     {
+            
+    //         std::cout << query.GetResult(j)->Dist << "@(" << query.GetResult(j)->VID << "," << query.GetResult(j)->VID << ") ";
+    //     }
+    //     std::cout << "\n";
+    // }
+
+    return std::move(input_queries);
+}
+
 bool
 AnnIndex::ReadyToServe() const
 {
@@ -220,6 +266,9 @@ AnnIndex::UpdateIndex()
 bool
 AnnIndex::Save(const char* p_savefile) const
 {
+    std::cout << "save index\n";
+    // print p_savefile
+    std::cout << p_savefile << "\n";
     return SPTAG::ErrorCode::Success == m_index->SaveIndex(p_savefile);
 }
 
@@ -309,4 +358,11 @@ AnnIndex::Merge(const char* p_indexFilePath1, const char* p_indexFilePath2)
         return AnnIndex(0);
 
     return AnnIndex(vecIndex);
+}
+
+bool 
+AnnIndex::Test()
+{
+    std::cout << " Test Called from python \n";
+    return 1;
 }

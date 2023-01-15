@@ -42,6 +42,8 @@ public:
 
     std::shared_ptr<QueryResult> BatchSearch(ByteArray p_data, int p_vectorNum, int p_resultNum, bool p_withMetaData);
 
+    std::vector<QueryResult> FakasuloSearch(ByteArray p_data, int p_vectorNum, int p_resultNum, bool p_withMetaData);
+    
     bool ReadyToServe() const;
 
     void UpdateIndex();
@@ -59,6 +61,8 @@ public:
     static AnnIndex Load(const char* p_loaderFile);
 
     static AnnIndex Merge(const char* p_indexFilePath1, const char* p_indexFilePath2);
+
+    bool Test();
 
 private:
     AnnIndex(const std::shared_ptr<SPTAG::VectorIndex>& p_index);

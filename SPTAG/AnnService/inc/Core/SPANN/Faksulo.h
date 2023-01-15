@@ -7,8 +7,6 @@
 #include <map>
 #include "inc/Core/SearchQuery.h"
 
-#define MxVectorSize 5000
-
 class inverted_index_node {
     public:
         inverted_index_node(){
@@ -71,77 +69,6 @@ class input_query {
         std::vector<int> nearest_clusters;
 };
 
-class Fakasulo_LL{
-    public:
-    Fakasulo_LL()
-    {
-            input_queries = nullptr;
-            inverted_index = {};
-    }
-    Fakasulo_LL(std::vector<input_query>& _input_queries){
-            input_queries = &_input_queries;
-            std::map<int,int> centroid_count;
-            for (input_query& q : _input_queries){
-                for(auto cluster_id : q.get_nearest_clusters()){
-                    if(inverted_index_map.find(cluster_id) == inverted_index_map.end()){
-                        // inverted_index_map[cluster_id] = new std::vector<SPTAG::QueryResult*>();
-                        inverted_index_map[cluster_id] = new std::list<std::vector<SPTAG::QueryResult*>>();
-
-                    }
-                    if(centroid_count.count(cluster_id) == 0)
-                        centroid_count[cluster_id] = 1;
-                    else
-                        centroid_count[cluster_id]++;
-                }
-            }
-        }
-    void process(){
-            for(input_query& q : *(input_queries)){
-                for(auto cluster_id : q.get_nearest_clusters()){
-                    // check whether the vector is full with MxVectorSize elements
-                    if(inverted_index_map[cluster_id]->back().size() == MxVectorSize){
-                        inverted_index_map[cluster_id]->push_back(std::vector<SPTAG::QueryResult*>());
-                    }
-                    inverted_index_map[cluster_id]->back().push_back(q.get_query_result());
-                }
-            }
-            
-            // convert_map_to_vector();
-            // for (auto x : inverted_index_map){
-            //     // std::cout << "Centroid: " << x.first << " number of queries: " << inverted_index_map[x.first]->size() << std::endl;
-            //     inverted_index_map[x.first]->shrink_to_fit();
-            // }
-        }
-    
-        // void convert_map_to_vector(){
-        //     inverted_index.clear();
-        //     for(auto element : this->inverted_index_map){            
-        //         inverted_index.emplace_back(element.first, *(element.second));
-        //     }
-        // }
-
-        std::map<int, std::list<std::vector<SPTAG::QueryResult*>>*>& get_inverted_index_map(){
-            return inverted_index_map;
-        }
-
-    std::vector<inverted_index_node>& get_inverted_index(){
-        return inverted_index;
-    }
-    ~Fakasulo_LL(){
-        for (auto i : inverted_index_map) {
-            delete i.second; // we should replace it with shared pointers
-        }
-    }
-
-
-    private:
-        std::vector<input_query>* input_queries;
-        std::vector<inverted_index_node> inverted_index;
-        std::map<int, std::list<std::vector<SPTAG::QueryResult*>>*> inverted_index_map;
-
-};
-
-
 class Fakasulo {
     public:
     Fakasulo(){
@@ -150,23 +77,13 @@ class Fakasulo {
         }
     Fakasulo(std::vector<input_query>& _input_queries){
             input_queries = &_input_queries;
-            std::map<int,int> centroid_count;
             for (input_query& q : _input_queries){
                 for(auto cluster_id : q.get_nearest_clusters()){
                     if(inverted_index_map.find(cluster_id) == inverted_index_map.end()){
                         inverted_index_map[cluster_id] = new std::vector<SPTAG::QueryResult*>();
-                        
-                        
                     }
-                    if(centroid_count.count(cluster_id) == 0)
-                        centroid_count[cluster_id] = 1;
-                    else
-                        centroid_count[cluster_id]++;
                 }
             }
-            // for (auto x : inverted_index_map){
-            //     inverted_index_map[x.first]->reserve(4000000 * 5 * centroid_count[x.first] / (0.2 * 2000000 ));
-            // }
         }
         
         void process(){
@@ -177,10 +94,6 @@ class Fakasulo {
             }
             
             convert_map_to_vector();
-            for (auto x : inverted_index_map){
-                // std::cout << "Centroid: " << x.first << " number of queries: " << inverted_index_map[x.first]->size() << std::endl;
-                inverted_index_map[x.first]->shrink_to_fit();
-            }
         }
     
         void convert_map_to_vector(){
