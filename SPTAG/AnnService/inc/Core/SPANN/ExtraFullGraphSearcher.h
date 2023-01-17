@@ -272,8 +272,6 @@ namespace SPTAG
                         // decompress posting list
                         char* p_postingListFullData = buffer + listInfo->pageOffset;
                         requests_data.push( {*(listInfo), pi ,p_postingListFullData});
-                        // std::cout << "-----------------CallBack-----------------\n";
-                        // std::cout << "Added clusterID in Queue: " << pi << std::endl;
                     };
                     request_index++;
                 }
@@ -302,11 +300,16 @@ namespace SPTAG
                     // if (p_exWorkSpace->m_deduper.CheckAndSet(vectorID)) continue; 
                             
                     (this->*m_parseEncoding)(p_index, &listInfo, (ValueType*)(p_postingListFullData + offsetVector));
-                    //#pragma omp parallel for num_threads(4)
+                    // std::cout << "-------------Fakasulo----------------" << std::endl;
+                    // std::cout << "PostingID: " << p_exWorkSpace->m_postingIDs[pi]<< "List ele count: " << listInfo->listEleCount << std::endl;
+                    // std::cout << "Best result before cmp: " << queryResults.GetResult(0) << " --- " << queryResults.GetResult(queryResults.GetResultNum()-1) << std::endl;
                     for(auto &query: vecQueryResults){
+                        if(query->isDuplicate(vectorID))
+                            continue;   
                         auto distance2leaf = p_index->ComputeDistance(query->GetQuantizedTarget(), p_postingListFullData + offsetVector);
-                        // std::cout << "Target: " << *query->GetQuantizedTarget() << " compared to: " << vectorID << " Distance: "  << distance2leaf <<std::endl;
-                        query->DeDupAddPoint(vectorID, distance2leaf); 
+                        query->m_cmpCounter++;
+                        // std::cout << "F Target: " << *query->GetQuantizedTarget() << " compared to: " << vectorID << " Distance: "  << distance2leaf <<std::endl;
+                        query->AddPoint(vectorID, distance2leaf); 
                     }
                 } 
                 
@@ -318,6 +321,7 @@ namespace SPTAG
                 SearchStats* p_stats,
                 std::set<int>* truth, std::map<int, std::set<int>>* found)
             {
+                int comparisonCount = 0;
                 const uint32_t postingListCount = static_cast<uint32_t>(p_exWorkSpace->m_postingIDs.size());
 
                 COMMON::QueryResultSet<ValueType>& queryResults = *((COMMON::QueryResultSet<ValueType>*)&p_queryResults);
@@ -359,7 +363,7 @@ namespace SPTAG
                     request.m_success = false;
 
 #ifdef BATCH_READ // async batch read
-                    request.m_callback = [&p_exWorkSpace, &queryResults, &p_index, &request, pi,this](bool success)
+                    request.m_callback = [&p_exWorkSpace, &queryResults, &p_index, &request, pi, &comparisonCount,this](bool success)
                     {
                         char* buffer = request.m_buffer;
                         ListInfo* listInfo = (ListInfo*)(request.m_payload);
@@ -374,28 +378,31 @@ namespace SPTAG
                         // ProcessPosting();
                         // Print nodes in centroid
                         // std::cout << "------------PostingID: " << p_exWorkSpace->m_postingIDs[pi] << "------------" << std::endl;
-                        for(int i=0; i < listInfo->listEleCount; i++)
-                        {
-                            uint64_t offsetVectorID, offsetVector;
-                            (this->*m_parsePosting)(offsetVectorID, offsetVector, i, listInfo->listEleCount);
-                            int vectorID = *(reinterpret_cast<int*>(p_postingListFullData + offsetVectorID));
-                            // std::cout << vectorID << " ";
-                        }
+                        // for(int i=0; i < listInfo->listEleCount; i++)
+                        // {
+                        //     uint64_t offsetVectorID, offsetVector;
+                        //     (this->*m_parsePosting)(offsetVectorID, offsetVector, i, listInfo->listEleCount);
+                        //     int vectorID = *(reinterpret_cast<int*>(p_postingListFullData + offsetVectorID));
+                        //     // std::cout << vectorID << " ";
+                        // }
 
                         // std::cout << std::endl;
-
-                        for (int i = 0; i < listInfo->listEleCount; i++) { 
+                        // std::cout << "-------------SPTAG----------------" << std::endl;
+                        // std::cout << "PostingID: " << p_exWorkSpace->m_postingIDs[pi]<< "List ele count: " << listInfo->listEleCount << std::endl;
+                        // std::cout << "Best result before cmp: " << queryResults.GetResult(0)->VID << " --- " << queryResults.GetResult(queryResults.GetResultNum()-1)->VID << std::endl;
+                        for (int i = 0; i < listInfo->listEleCount; i++) {
+                            
                             uint64_t offsetVectorID, offsetVector;
                             (this->*m_parsePosting)(offsetVectorID, offsetVector, i, listInfo->listEleCount);
                             int vectorID = *(reinterpret_cast<int*>(p_postingListFullData + offsetVectorID));
                             if (p_exWorkSpace->m_deduper.CheckAndSet(vectorID)) continue; 
                             (this->*m_parseEncoding)(p_index, listInfo, (ValueType*)(p_postingListFullData + offsetVector));
-                            
+                            comparisonCount++;
                             auto distance2leaf = p_index->ComputeDistance(queryResults.GetQuantizedTarget(), p_postingListFullData + offsetVector); 
-                            // std::cout << "Target: " << *(queryResults.GetQuantizedTarget()) << " compared to: " << vectorID << " Distance: "  << distance2leaf <<std::endl;
+                            // std::cout << "SP Target: " << *(queryResults.GetQuantizedTarget()) << " compared to: " << vectorID << " Distance: "  << distance2leaf <<std::endl;
                             queryResults.AddPoint(vectorID, distance2leaf); 
                         } 
-
+                        // std::cout << "Best result After cmp: " << queryResults.GetResult(0) << " --- " << queryResults.GetResult(queryResults.GetResultNum()-1) << std::endl;
 
                     };
 #else // async read

@@ -42,7 +42,7 @@ public:
 
     std::shared_ptr<QueryResult> BatchSearch(ByteArray p_data, int p_vectorNum, int p_resultNum, bool p_withMetaData);
 
-    std::vector<QueryResult> FakasuloSearch(ByteArray p_data, int p_vectorNum, int p_resultNum, bool p_withMetaData);
+    std::vector<QueryResult> FakasuloSearch(ByteArray p_data, int p_vectorNum, int p_resultNum, bool p_withMetaData, int p_numThreads);
     
     bool ReadyToServe() const;
 

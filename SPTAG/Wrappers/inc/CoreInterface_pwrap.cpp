@@ -4138,6 +4138,7 @@ SWIGINTERN PyObject *_wrap_AnnIndex_FakasuloSearch(PyObject *SWIGUNUSEDPARM(self
   int arg3 ;
   int arg4 ;
   bool arg5 ;
+  int arg6 ;
   void *argp1 = 0 ;
   int res1 = 0 ;
   std::shared_ptr< AnnIndex > tempshared1 ;
@@ -4149,10 +4150,12 @@ SWIGINTERN PyObject *_wrap_AnnIndex_FakasuloSearch(PyObject *SWIGUNUSEDPARM(self
   int ecode4 = 0 ;
   bool val5 ;
   int ecode5 = 0 ;
-  PyObject *swig_obj[5] ;
+  int val6 ;
+  int ecode6 = 0 ;
+  PyObject *swig_obj[6] ;
   std::vector< QueryResult > result;
   
-  if (!SWIG_Python_UnpackTuple(args, "AnnIndex_FakasuloSearch", 5, 5, swig_obj)) SWIG_fail;
+  if (!SWIG_Python_UnpackTuple(args, "AnnIndex_FakasuloSearch", 6, 6, swig_obj)) SWIG_fail;
   {
     int newmem = 0;
     res1 = SWIG_ConvertPtrAndOwn(swig_obj[0], &argp1, SWIGTYPE_p_std__shared_ptrT_AnnIndex_t, 0 |  0 , &newmem);
@@ -4212,7 +4215,12 @@ SWIGINTERN PyObject *_wrap_AnnIndex_FakasuloSearch(PyObject *SWIGUNUSEDPARM(self
     SWIG_exception_fail(SWIG_ArgError(ecode5), "in method '" "AnnIndex_FakasuloSearch" "', argument " "5"" of type '" "bool""'");
   } 
   arg5 = static_cast< bool >(val5);
-  result = (arg1)->FakasuloSearch(arg2,arg3,arg4,arg5);
+  ecode6 = SWIG_AsVal_int(swig_obj[5], &val6);
+  if (!SWIG_IsOK(ecode6)) {
+    SWIG_exception_fail(SWIG_ArgError(ecode6), "in method '" "AnnIndex_FakasuloSearch" "', argument " "6"" of type '" "int""'");
+  } 
+  arg6 = static_cast< int >(val6);
+  result = (arg1)->FakasuloSearch(arg2,arg3,arg4,arg5,arg6);
   
   {
     resultobj = PyTuple_New(3);

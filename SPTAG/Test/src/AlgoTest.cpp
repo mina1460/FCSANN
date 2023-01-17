@@ -126,7 +126,7 @@ void Search(const std::string folder, T* vec, SPTAG::SizeType n, int k, std::str
     for (SPTAG::SizeType i = 0; i < n; i++) 
     {
         int index = i * num_threads / n; 
-        SPTAG::QueryResult res(vec, k, true);
+        SPTAG::QueryResult res(vec, k, false);
         queries[index].push_back(res);
         // /*
         vecIndex->SearchIndex(res);
@@ -238,14 +238,14 @@ template <typename T>
 void Test(SPTAG::IndexAlgoType algo, std::string distCalcMethod)
 {
     
-    SPTAG::SizeType n = 50000, q = 1000;
-    SPTAG::DimensionType m = 5;
+    SPTAG::SizeType n = 10000, q = 500;
+    SPTAG::DimensionType m = 10;
     int k = 5;
     std::vector<T> vec;
     // std::cout << "--------------Vec--------------------\n\n";
     for (SPTAG::SizeType i = 0; i < n; i++) {
         for (SPTAG::DimensionType j = 0; j < m; j++) {
-            vec.push_back((T)(rand()%10000));
+            vec.push_back((T)(rand()));
             //vec.push_back((T)(i));
             // std::cout << (T)i << " ";
         }
@@ -258,7 +258,7 @@ void Test(SPTAG::IndexAlgoType algo, std::string distCalcMethod)
     // std::cout << "----------------Query-----------------\n\n";
     for (SPTAG::SizeType i = 0; i < q; i++) {
         for (SPTAG::DimensionType j = 0; j < m; j++) {
-            query.push_back((T)(rand()%10000));
+            query.push_back((T)(rand()));
         }
         // std::cout << std::endl;
     }
@@ -284,9 +284,9 @@ void Test(SPTAG::IndexAlgoType algo, std::string distCalcMethod)
         SPTAG::ByteArray((std::uint8_t*)metaoffset.data(), metaoffset.size() * sizeof(std::uint64_t), false),
         n));
     
-    // Build<T>(algo, distCalcMethod, vecset, metaset, "testindices");
+    Build<T>(algo, distCalcMethod, vecset, metaset, "testindices_small");
     std::string truthmeta1[] = { "0", "1", "2", "2", "1", "3", "4", "3", "5" };
-    Search<T>("testindices", query.data(), q, k, truthmeta1);
+    Search<T>("testindices_small", query.data(), q, k, truthmeta1);
     exit(0);
 
     if (algo != SPTAG::IndexAlgoType::SPANN) {

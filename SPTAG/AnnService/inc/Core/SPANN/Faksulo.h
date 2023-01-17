@@ -6,6 +6,7 @@
 #include <vector>
 #include <map>
 #include "inc/Core/SearchQuery.h"
+#include "inc/Core/Common/QueryResultSet.h"
 
 class inverted_index_node {
     public:
@@ -111,9 +112,9 @@ class Fakasulo {
         return inverted_index;
     }
         ~Fakasulo(){
-            for (auto i : inverted_index_map) {
-                delete i.second; // we should replace it with shared pointers
-            }
+            // for (auto i : inverted_index_map) {
+            //     delete i.second; // we should replace it with shared pointers
+            // }
         }
 
     private:

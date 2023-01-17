@@ -228,7 +228,9 @@ public:
         return m_results.Data() + m_resultNum;
     }
 
-
+    int m_queryID = 0;
+    int m_cmpCounter = 0;
+    std::unordered_set<int> m_vectorSet {0};
 protected:
     const void* m_target;
 
@@ -242,9 +244,8 @@ protected:
 
     Array<BasicResult> m_results;
     
-    std::unordered_set<int> m_vectorSet {0};
-
-
+    
+    
 };
 } // namespace SPTAG
 

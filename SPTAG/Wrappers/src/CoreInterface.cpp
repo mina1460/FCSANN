@@ -4,7 +4,7 @@
 #include "inc/CoreInterface.h"
 #include "inc/Helper/StringConvert.h"
 #include <chrono>
-
+#include <thread>
 
 AnnIndex::AnnIndex(DimensionType p_dimension)
     : m_algoType(SPTAG::IndexAlgoType::BKT),
@@ -211,26 +211,43 @@ AnnIndex::BatchSearch(ByteArray p_data, int p_vectorNum, int p_resultNum, bool p
     return std::move(results);
 }
 
+void ThreadedSearch(std::shared_ptr<SPTAG::VectorIndex> &vecIndex, std::vector<std::vector<SPTAG::QueryResult>> &queries, int i){
+     vecIndex->SearchIndex(queries[i]);
+}
+
 std::vector<QueryResult>
-AnnIndex::FakasuloSearch(ByteArray p_data, int p_vectorNum, int p_resultNum, bool p_withMetaData)
+AnnIndex::FakasuloSearch(ByteArray p_data, int p_vectorNum, int p_resultNum, bool p_withMetaData, int p_num_threads)
 { 
 
-    std::vector<QueryResult> input_queries;
-    input_queries.reserve(p_vectorNum); 
-    std::cout << "vectorSize: " << m_inputVectorSize << "\n";
+    int num_threads = p_num_threads;
+    std::thread threadPool[num_threads];
+    std::vector<std::vector<SPTAG::QueryResult>> queries(num_threads, std::vector<SPTAG::QueryResult>());
+
+    std::vector<QueryResult> input_queries; 
+    
     for (int i = 0; i < p_vectorNum; i++) {
+        int index = i * num_threads / p_vectorNum; 
         QueryResult q_result = QueryResult(p_data.Data() + i * m_inputVectorSize, p_resultNum, p_withMetaData);
-        input_queries.push_back(q_result);
+        q_result.m_queryID = i;
+        queries[index].push_back(q_result);
     }
     auto start = std::chrono::high_resolution_clock::now();
-    if (nullptr != m_index)
-    {
-        std::cout << "Start search \n";
-        m_index->SearchIndex(input_queries, true);
+
+    for(int i=0; i<num_threads; i++){
+        threadPool[i] = std::thread(ThreadedSearch, std::ref(m_index) ,std::ref(queries), i);
+    }
+    for(int i=0; i<num_threads; i++){
+        threadPool[i].join();
     }
     auto finish = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = finish - start;
     std::cout << "Elapsed time: " << elapsed.count() << " s\n";
+
+    // if (nullptr != m_index)
+    // {
+    //     std::cout << "Start search \n";
+    //     m_index->SearchIndex(input_queries, true);
+    // }
 
     
     int our_index = 0;
@@ -245,6 +262,15 @@ AnnIndex::FakasuloSearch(ByteArray p_data, int p_vectorNum, int p_resultNum, boo
     //     }
     //     std::cout << "\n";
     // }
+
+    // Add the results to the input_queries
+    int counter = 0 ;
+    for(int i=0; i<num_threads; i++){
+        for(auto& query: queries[i]){
+            input_queries.push_back(query);
+        }
+    }
+
 
     return std::move(input_queries);
 }

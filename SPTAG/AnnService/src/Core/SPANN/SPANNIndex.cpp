@@ -214,7 +214,6 @@ namespace SPTAG
                 workSpace->m_postingIDs.clear();
 
                 float limitDist = p_queryResults->GetResult(0)->Dist * m_options.m_maxDistRatio;
-                // std::cout << "GetResultNum: " << p_queryResults->GetResultNum() << std::endl;
                 for (int i = 0; i < p_queryResults->GetResultNum(); ++i)
                 {
                     auto res = p_queryResults->GetResult(i);
@@ -235,7 +234,7 @@ namespace SPTAG
                     workSpace->m_postingIDs.emplace_back(postingID);
                     posting_counter++;
                 }
-                // std::cout << "posting_counter: " << posting_counter << std::endl;
+                
                 p_queryResults->Reverse();
                 m_extraSearcher->SearchIndex(workSpace.get(), *p_queryResults, m_index, nullptr);
                 m_workSpacePool->Return(workSpace);
@@ -499,7 +498,7 @@ namespace SPTAG
                         workSpace->m_postingIDs.emplace_back(postingID);
                     }
                     //We are pushing a copy of the input query
-                    input_queries.push_back(input_query(query, queries[query] ,workSpace->m_postingIDs));
+                    input_queries.push_back(input_query(query, *vecQueryResultSet[query] ,workSpace->m_postingIDs));
                     m_workSpacePool->Return(workSpace);
                 }
 
@@ -522,9 +521,9 @@ namespace SPTAG
             auto start_time_after_fakasulo = std::chrono::high_resolution_clock::now();
             
             for (auto& query: vecQueryResultSet)
-                {
-                    query->Reverse(); 
-                }
+            {
+                query->Reverse(); 
+            }
                 
             int loop_index = 0;
             while(loop_index < inverted_index.size()){
@@ -552,27 +551,33 @@ namespace SPTAG
                     
                     QueueData queueData = readings.front();
                 
-                    workSpace = m_workSpacePool->Rent();
-                    workSpace->m_deduper.clear();
-                    workSpace->m_postingIDs.clear();
+                    // workSpace = m_workSpacePool->Rent();
+                    // workSpace->m_deduper.clear();
+                    // workSpace->m_postingIDs.clear();
+                    // workSpace->m_postingIDs.push_back(cluster_id);
 
                     int cluster_id = queueData.clusterID;
-                    workSpace->m_postingIDs.push_back(cluster_id);
 
                     
                     readings.pop();
-                    m_extraSearcher->SearchInvertedIndex(workSpace.get(), *(inverted_index_map[cluster_id]),
+                    m_extraSearcher->SearchInvertedIndex(nullptr, *(inverted_index_map[cluster_id]),
                         nullptr, m_index, queueData);
-                    
                     processed++;
-                    m_workSpacePool->Return(workSpace);
+                    // m_workSpacePool->Return(workSpace);
 
                 }
                 loop_index += read_count;
             }
-            for(auto& query: queries){
-                auto* qs = (COMMON::QueryResultSet<T>*) & query;
-                qs->SortResult();
+        
+            for(int i=0; i<vecQueryResultSet.size(); i++){
+                // auto* qs = (COMMON::QueryResultSet<T>*) & query;
+                auto query_set = vecQueryResultSet[i];
+                query_set->SortResult();
+                if (queries[i].GetResultNum() < m_options.m_searchInternalResultNum) {
+                    std::copy(query_set->GetResults(), query_set->GetResults() + queries[i].GetResultNum(), queries[i].GetResults());
+                }else{
+                    std::copy(query_set->GetResults(), query_set->GetResults() + m_options.m_searchInternalResultNum, queries[i].GetResults());
+                }
             }
             // auto end_time_after_fakasulo = std::chrono::high_resolution_clock::now();
             // auto int_ms = std::chrono::duration_cast<std::chrono::milliseconds> (end_time_after_fakasulo - start_time_after_fakasulo) ;
