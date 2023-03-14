@@ -303,6 +303,7 @@ namespace SPTAG
                     // std::cout << "-------------Fakasulo----------------" << std::endl;
                     // std::cout << "PostingID: " << p_exWorkSpace->m_postingIDs[pi]<< "List ele count: " << listInfo->listEleCount << std::endl;
                     // std::cout << "Best result before cmp: " << queryResults.GetResult(0) << " --- " << queryResults.GetResult(queryResults.GetResultNum()-1) << std::endl;
+                    // #pragma omp parallel for schedule(static) num_threads(15)
                     for(auto &query: vecQueryResults){
                         if(query->isDuplicate(vectorID))
                             continue;   
@@ -646,7 +647,7 @@ namespace SPTAG
                         }
 
                         float acc = 0;
-#pragma omp parallel for schedule(dynamic)
+#pragma omp parallel for schedule(dynamic) num_threads(15)
                         for (int j = 0; j < sampleNum; j++)
                         {
                             COMMON::Utils::atomic_float_add(&acc, COMMON::TruthSet::CalculateRecall(p_headIndex.get(), fullVectors->GetVector(samples[j]), candidateNum));
