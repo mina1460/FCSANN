@@ -108,6 +108,9 @@ bool SanityCheck(std::vector<SPTAG::QueryResult> FakasuloRes, std::vector<SPTAG:
             }
         }
         std::cout << " NUM OF DIFF: " << counter << std::endl;
+
+        if(counter == 0)return true;
+        else return false;
 }
 
 template <typename T>
