@@ -28,6 +28,8 @@
 #include <functional>
 #include <shared_mutex>
 
+#include "inc/Core/SPANN/Faksulo.h"
+
 namespace SPTAG
 {
 
@@ -141,13 +143,11 @@ namespace SPTAG
             ErrorCode DeleteIndex(const SizeType& p_id) { return ErrorCode::Undefined; }
             ErrorCode RefineIndex(const std::vector<std::shared_ptr<Helper::DiskIO>>& p_indexStreams, IAbortOperation* p_abort) { return ErrorCode::Undefined; }
             ErrorCode RefineIndex(std::shared_ptr<VectorIndex>& p_newIndex) { return ErrorCode::Undefined; }
-        
-            // MapReduce 
-            ErrorCode reducer_launcher(std::map<int, std::list<std::vector<SPTAG::QueryResult*>>*> inverted_index_map_vector, int num_threads) const;
-            std::map<int, std::list<std::vector<SPTAG::QueryResult*>>*> merge_maps(std::vector<std::map<int, std::list<std::vector<SPTAG::QueryResult*>>*>> inverted_index_map_vector, int num_threads) const;
-            ErrorCode reducer(std::pair<int,std::list<std::vector<SPTAG::QueryResult*>>*> inverted_index_map) const;
-            ErrorCode mapper_launcher(std::vector<QueryResult> &queries, int num_threads, std::vector<std::map<int, std::list<std::vector<SPTAG::QueryResult*>>*>> &results) const;
-            std::map<int, std::list<std::vector<SPTAG::QueryResult*>>*>mapper(std::vector<QueryResult> &queries, int start, int end) const;
+
+            // void Consumer(ConcurrentQueue<QueueData>& readings, std::map<int, std::vector<SPTAG::QueryResult*>*> &inverted_index_map);
+            // void Producer(/*std::vector<inverted_index_node>& inverted_index, */ConcurrentQueue<QueueData>& readings);
+
+            // ErrorCode LoadFromDisk
 
         
         private:

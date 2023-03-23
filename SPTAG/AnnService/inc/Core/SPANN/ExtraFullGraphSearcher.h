@@ -218,7 +218,7 @@ namespace SPTAG
 
             // Load from Disk Our implementation
             virtual void LoadFromDisk(std::shared_ptr<ExtraWorkSpace> p_exWorkSpace, std::vector<int> p_posting_ids, 
-                                        std::queue<QueueData >& requests_data ) override {
+                                        ConcurrentQueue<QueueData >& requests_data ) override {
                 
                 const uint32_t postingListCount = static_cast<uint32_t>(p_posting_ids.size());
  

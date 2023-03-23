@@ -14,6 +14,94 @@
 #include <chrono>
 #include <atomic>
 
+template <typename T>
+class ConcurrentQueue {
+    public:
+    T pop() {
+        std::unique_lock<std::mutex> mlock(mutex_);
+        while (queue_.empty()) {
+        // std::cout << "Waitig Pop1\n";
+        cond_.wait(mlock);
+        }
+        auto val = queue_.front();
+        queue_.pop();
+        consumed++;
+        mlock.unlock();
+        cond_.notify_one();
+        return val;
+    }
+
+    bool pop(T& item) {
+        std::unique_lock<std::mutex> mlock(mutex_);
+        if(consumed >= inverted_index_size) {
+            // std::cout << "Consumed: " << consumed << " Inverted Index Size: " << inverted_index_size << "\n";
+            return 0;
+        }
+        while (queue_.empty()) {
+        // std::cout << "Waitig Pop\n";
+        // std::cout << "Produced: " << produced << " Consumed: " << consumed << " Inverted Index Size: " << queue_.size() << "\n";
+        cond_.wait(mlock);
+        }
+        item = queue_.front();
+        queue_.pop();
+        consumed++;
+        // std::cout << "Queue size in consumer: " << queue_.size() << "\n";
+        mlock.unlock();
+        cond_.notify_one();
+        return 1;
+    }
+
+    void push(const T& item) {
+        std::unique_lock<std::mutex> mlock(mutex_);
+        // std::cout << "Pushing Fun\n";
+        if(!PushChecker()) {
+            std::cout << "PushChecker Failed\n";
+            return;
+        }
+        // while (queue_.size() >= BUFFER_SIZE) {
+        // std::cout << "Waitig Push\n";
+        // cond_.wait(mlock);
+        // }
+        // std::cout << "Pushing\n" << "Queue size: " << queue_.size() << "Batch read: "<< batch_read << "\n";
+        
+        queue_.push(item);
+        
+        // produced+=batch_read;
+        produced++;
+        mlock.unlock();
+        cond_.notify_one();
+    }
+    bool PushChecker() {
+        // std::unique_lock<std::mutex> mlock(mutex_);
+        if(produced >= inverted_index_size) {
+            return 0;
+        }
+        return 1;
+    }
+    int getProudced() {
+        return produced;
+    }
+    void setBatchRead(int batch_read) {
+        this->batch_read = batch_read;
+    }
+    size_t size() {
+        return produced;
+    }
+
+    ConcurrentQueue()=default;
+    ConcurrentQueue(const ConcurrentQueue&) = delete;            // disable copying
+    ConcurrentQueue& operator=(const ConcurrentQueue&) = delete; // disable assignment
+    ConcurrentQueue(int size) : inverted_index_size(size) {std::cout << "Inverted Index Size: " << inverted_index_size << "\n";} 
+    private:
+    std::queue<T> queue_;
+    std::mutex mutex_;
+    std::condition_variable cond_;
+    // const static unsigned int BUFFER_SIZE = 100;
+    int inverted_index_size;
+    int produced = 0;
+    int consumed = 0;
+    int batch_read = 0;
+};
 namespace SPTAG {
     namespace SPANN {
         struct ListInfo
@@ -196,7 +284,7 @@ namespace SPTAG {
                         SearchStats* p_stats, std::shared_ptr<VectorIndex> p_index, QueueData queueData) {};
 
             virtual void LoadFromDisk(std::shared_ptr<ExtraWorkSpace> p_exWorkSpace, std::vector<int> p_posting_ids, 
-                                        std::queue<QueueData>& requests_data ) {};
+                                        ConcurrentQueue<QueueData>& requests_data ) {};
 
             virtual bool BuildIndex(std::shared_ptr<Helper::VectorSetReader>& p_reader, 
                 std::shared_ptr<VectorIndex> p_index, 

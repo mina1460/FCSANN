@@ -88,12 +88,15 @@ void ThreadedSearch(std::shared_ptr<SPTAG::VectorIndex> &vecIndex, std::vector<s
 
 bool SanityCheck(std::vector<SPTAG::QueryResult> FakasuloRes, std::vector<SPTAG::QueryResult> SptagRes, int k)
 {
+    std::cout << "Sanity Check \n";
         if(FakasuloRes.size() != SptagRes.size())
         {
             std::cout << "Results not size \n";
             return false;
         }
         int counter = 0;
+        std::cout << "Res Size: " << FakasuloRes.size() << std::endl;
+        std::cout << "Res Size SPTAG: " << SptagRes.size() << std::endl;
         for(int i=0; i<FakasuloRes.size(); i++)
         {
             for(int j=0; j < k; j++){
@@ -103,11 +106,14 @@ bool SanityCheck(std::vector<SPTAG::QueryResult> FakasuloRes, std::vector<SPTAG:
                     std::cout << "SPTAG VID: " << SptagRes[i].GetResult(j)->VID << std::endl;
                     std::cout << "Fakasulo VID: " << FakasuloRes[i].GetResult(j)->VID << std::endl;
                     counter++;
-                    break;
                 }                
             }
         }
         std::cout << " NUM OF DIFF: " << counter << std::endl;
+        if(counter == 0)
+            return true;
+        else
+            return false;
 }
 
 template <typename T>
@@ -132,7 +138,7 @@ void Search(const std::string folder, T* vec, SPTAG::SizeType n, int k, std::str
         vecIndex->SearchIndex(res);
         SptagRes.push_back(res);
         std::unordered_set<std::string> resmeta;
-        /*
+        // /*
         std::cout << "SPTAG query: " << i << "+";
         for (int j = 0; j < k; j++)
         {
@@ -140,7 +146,7 @@ void Search(const std::string folder, T* vec, SPTAG::SizeType n, int k, std::str
             std::cout << res.GetResult(j)->Dist << "@(" << res.GetResult(j)->VID << "," << std::string((char*)res.GetMetadata(j).Data(), res.GetMetadata(j).Length()) << ") ";
         }
         std::cout << std::endl;
-        */
+        // */
         
         vec += vecIndex->GetFeatureDim();
     }
@@ -165,20 +171,20 @@ void Search(const std::string folder, T* vec, SPTAG::SizeType n, int k, std::str
 
     for(auto& queries_sub: queries){
         for(auto& query: queries_sub){
-        // std::cout << "Fakasulo query: " << our_index++ << "+";
-        //  for (int j = 0; j < k; j++)
-        //     {
+        std::cout << "Fakasulo query: " << our_index++ << "+";
+         for (int j = 0; j < k; j++)
+            {
                 
-        //         std::cout << query.GetResult(j)->Dist << "@(" << query.GetResult(j)->VID << "," << query.GetResult(j)->VID << ") ";
-        //     }
-        //     std::cout << "\n";
+                std::cout << query.GetResult(j)->Dist << "@(" << query.GetResult(j)->VID << "," << ") ";
+            }
+            std::cout << "\n";
                 FakasuloRes.push_back(query);
             }
     }
     
 
     std::cout << " ------------Sanity Check------------ \n"; 
-    SanityCheck(FakasuloRes, SptagRes, k);
+    bool res = SanityCheck(FakasuloRes, SptagRes, k);
     
     vecIndex.reset();
 }
@@ -238,8 +244,8 @@ template <typename T>
 void Test(SPTAG::IndexAlgoType algo, std::string distCalcMethod)
 {
     
-    SPTAG::SizeType n = 10000, q = 500;
-    SPTAG::DimensionType m = 10;
+    SPTAG::SizeType n = 100000, q = 10000;
+    SPTAG::DimensionType m = 100;
     int k = 5;
     std::vector<T> vec;
     // std::cout << "--------------Vec--------------------\n\n";
@@ -284,8 +290,11 @@ void Test(SPTAG::IndexAlgoType algo, std::string distCalcMethod)
         SPTAG::ByteArray((std::uint8_t*)metaoffset.data(), metaoffset.size() * sizeof(std::uint64_t), false),
         n));
     
-    Build<T>(algo, distCalcMethod, vecset, metaset, "testindices_small");
+    // Build<T>(algo, distCalcMethod, vecset, metaset, "testindices_small");
     std::string truthmeta1[] = { "0", "1", "2", "2", "1", "3", "4", "3", "5" };
+    // std::vector<T> debugQuery;
+    // debugQuery.push_back(query[1]);
+    // Search<T>("testindices_small", debugQuery.data(), 1, k, truthmeta1);
     Search<T>("testindices_small", query.data(), q, k, truthmeta1);
     exit(0);
 
