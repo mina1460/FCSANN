@@ -279,6 +279,7 @@ namespace SPTAG
 #endif
                 BatchReadFileAsync(m_indexFiles, (p_exWorkSpace->m_diskRequests).data(), postingListCount);
             }
+
             virtual void SearchInvertedIndex(ExtraWorkSpace* p_exWorkSpace, std::vector<QueryResult*> &queries, 
                         SearchStats* p_stats, std::shared_ptr<VectorIndex> p_index, QueueData queueData) override
             {
@@ -303,10 +304,28 @@ namespace SPTAG
                     // std::cout << "-------------Fakasulo----------------" << std::endl;
                     // std::cout << "PostingID: " << p_exWorkSpace->m_postingIDs[pi]<< "List ele count: " << listInfo->listEleCount << std::endl;
                     // std::cout << "Best result before cmp: " << queryResults.GetResult(0) << " --- " << queryResults.GetResult(queryResults.GetResultNum()-1) << std::endl;
+                    
+                    /*                          DEBUGGING
+                    
+                        std::cout << "Results before new vectorID: " << vectorID << std::endl;
+                        std::cout << "--------GetResult(Actual result)------------\n";
+                        for(int i = 0; i < vecQueryResults[0]->GetResultNum(); i++){
+                            std::cout << vecQueryResults[0]->GetResult(i)->VID << " ";
+                        }
+                        std::cout << std::endl;
+                        std::cout << "--------Our Set------------\n";
+                        for(auto i : vecQueryResults[0]->m_vectorSet){
+                            std::cout << i << " ";
+                        }
+                        std::cout << std::endl;
+
+                    */
+
                     // #pragma omp parallel for schedule(static) num_threads(15)
                     for(auto &query: vecQueryResults){
-                        if(query->isDuplicate(vectorID))
+                        if(query->isDuplicate(vectorID)){
                             continue;   
+                        }
                         auto distance2leaf = p_index->ComputeDistance(query->GetQuantizedTarget(), p_postingListFullData + offsetVector);
                         query->m_cmpCounter++;
                         // std::cout << "F Target: " << *query->GetQuantizedTarget() << " compared to: " << vectorID << " Distance: "  << distance2leaf <<std::endl;

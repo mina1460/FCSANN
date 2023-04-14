@@ -232,9 +232,10 @@ namespace SPTAG
                         !m_extraSearcher->CheckValidPosting(postingID)) 
                         continue;
                     workSpace->m_postingIDs.emplace_back(postingID);
+                    // std::cout << "SPTAG postingID: " << postingID << "\n";
                     posting_counter++;
                 }
-                
+
                 p_queryResults->Reverse();
                 m_extraSearcher->SearchIndex(workSpace.get(), *p_queryResults, m_index, nullptr);
                 m_workSpacePool->Return(workSpace);
@@ -278,7 +279,8 @@ namespace SPTAG
         // }     
 
         // Our producer
-        void Producer(std::vector<inverted_index_node>& inverted_index, ConcurrentQueue<QueueData>& readings,
+        template <typename T>
+        void Producer(std::vector<inverted_index_node<T>>& inverted_index, ConcurrentQueue<QueueData>& readings,
         COMMON::WorkSpacePool<ExtraWorkSpace>*m_workSpacePool, std::shared_ptr<IExtraSearcher> m_extraSearcher)
         {   
             int producion_count = 0;   
@@ -289,6 +291,7 @@ namespace SPTAG
                     std::vector<int> read_list(read_count); //Cluster_Ids to read
                     for(int j=0; j<read_count; j++){
                         read_list[j] = inverted_index[readings.getProudced()+j].get_cluster_id();
+                        // std::cout << "Posting Id: " << read_list[j] << "\n";
                     } 
                     workSpace = m_workSpacePool->Rent();
                     workSpace->m_deduper.clear();
@@ -297,21 +300,30 @@ namespace SPTAG
                     producion_count++;
                     m_workSpacePool->Return(workSpace);
                 }
-                std::cout << "--------Producer count: " << producion_count << std::endl;
+                // std::cout << "--------Producer count: " << producion_count << std::endl;
         }
 
         // Our consumer 
-        void Consumer(ConcurrentQueue<QueueData>& readings, std::map<int, std::vector<SPTAG::QueryResult*>*> &inverted_index_map, std::shared_ptr<VectorIndex> m_index_ptr, std::shared_ptr<SPTAG::SPANN::IExtraSearcher> m_extraSearcher){
+        template <typename T>
+        void Consumer(ConcurrentQueue<QueueData>& readings, std::map<int, std::vector<SPTAG::COMMON::QueryResultSet<T>*>*>&inverted_index_map, std::shared_ptr<VectorIndex> m_index_ptr, std::shared_ptr<SPTAG::SPANN::IExtraSearcher> m_extraSearcher){
             QueueData queueData;
             int consumer_count = 0;
             while(readings.pop(queueData)){                    
                 int cluster_id = queueData.clusterID;
                 // std::cout << "--------Consumer cluster id: " << cluster_id << std::endl;
-                m_extraSearcher->SearchInvertedIndex(nullptr, *(inverted_index_map[cluster_id]),
+                std::vector<QueryResult*> q_vector;
+                std::vector<SPTAG::COMMON::QueryResultSet<T>*> &p_queryResults = *(inverted_index_map[cluster_id]);
+                for (int i = 0; i < p_queryResults.size(); i++)
+                {
+                    //cast to QueryResult
+                    QueryResult* p_query = dynamic_cast<QueryResult*>(p_queryResults[i]);
+                    q_vector.push_back(p_query);
+                }
+                m_extraSearcher->SearchInvertedIndex(nullptr, q_vector,
                     nullptr, m_index_ptr, queueData);
                 consumer_count++;
             }
-            std::cout << "--------Consumer count: " << consumer_count << std::endl;
+            // std::cout << "--------Consumer count: " << consumer_count << std::endl;
         }
 
         template<typename T>
@@ -321,7 +333,7 @@ namespace SPTAG
             auto start_time_search = std::chrono::high_resolution_clock::now();
             if (!m_bReady) return ErrorCode::EmptyIndex;
 
-            std::vector<input_query> input_queries;
+            std::vector<input_query<T>> input_queries;
             std::vector< COMMON::QueryResultSet<T>* > vecQueryResultSet;
             for (int query =0; query<queries.size(); query++)
             {
@@ -334,6 +346,14 @@ namespace SPTAG
                 COMMON::QueryResultSet<T>* p_queryResults = vecQueryResultSet[query];
                 m_index->SearchIndex(*p_queryResults);
                 
+                    // for (auto& query: vecQueryResultSet)
+                    // {
+                    //     std::cout << "\nAfter Search \n";                
+                    //     for(int i=0; i<query->GetResultNum(); i++){
+                    //         std::cout << query->GetResult(i)->VID << " ";
+                    //     }
+                    // }
+
                 std::shared_ptr<ExtraWorkSpace> workSpace = nullptr;
                 if (m_extraSearcher != nullptr) {
                     workSpace = m_workSpacePool->Rent();
@@ -347,7 +367,10 @@ namespace SPTAG
                         if (res->VID == -1) break;
 
                         auto postingID = res->VID;
+                        p_queryResults->m_vectorSet.erase(res->VID);
                         res->VID = static_cast<SizeType>((m_vectorTranslateMap.get())[res->VID]);
+                        p_queryResults->m_vectorSet.insert(res->VID);
+                        
                         if (res->VID == MaxSize) {
                             res->VID = -1;
                             res->Dist = MaxDist;
@@ -361,7 +384,7 @@ namespace SPTAG
                         workSpace->m_postingIDs.emplace_back(postingID);
                     }
                     //We are pushing a copy of the input query
-                    input_queries.push_back(input_query(query, *vecQueryResultSet[query] ,workSpace->m_postingIDs));
+                    input_queries.emplace_back(query, *vecQueryResultSet[query] ,workSpace->m_postingIDs);
                     m_workSpacePool->Return(workSpace);
                 }
 
@@ -371,20 +394,24 @@ namespace SPTAG
 
             //Time fakasulo module
             auto start_time_fakasulo = std::chrono::high_resolution_clock::now();
-            Fakasulo fakasulo(input_queries);
+            Fakasulo<T> fakasulo(input_queries);
             fakasulo.process();
             auto end_time_fakasulo = std::chrono::high_resolution_clock::now();
             std::cout << "Fakasulo inverting time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end_time_fakasulo-start_time_fakasulo).count() << std::endl;
-            std::vector<inverted_index_node> inverted_index = fakasulo.get_inverted_index();
+            std::vector<inverted_index_node<T>> inverted_index = fakasulo.get_inverted_index();
              // Different queries for invert
-            std::map<int, std::vector<SPTAG::QueryResult*>*> inverted_index_map = fakasulo.get_inverted_index_map();
+            std::map<int, std::vector<SPTAG::COMMON::QueryResultSet<T>*>*> inverted_index_map = fakasulo.get_inverted_index_map();
 
-            std::shared_ptr<ExtraWorkSpace> workSpace = nullptr;
+            std::shared_ptr<ExtraWorkSpace> workSpace = nullptr; 
             
             auto start_time_after_fakasulo = std::chrono::high_resolution_clock::now();
             
             for (auto& query: vecQueryResultSet)
             {
+                // std::cout << "Before Reverse \n";                
+                // for(int i=0; i<query->GetResultNum(); i++){
+                //     std::cout << query->GetResult(i)->VID << " ";
+                // }
                 query->Reverse(); 
             }
             std::cout << "vecQueryResultSet size: " << vecQueryResultSet.size() << std::endl;
@@ -393,10 +420,26 @@ namespace SPTAG
 
             int loop_index = 0;
             ConcurrentQueue <QueueData >readings (inverted_index.size());
-            std::thread producer_thread(&Producer, std::ref(inverted_index), std::ref(readings), m_workSpacePool.get(), m_extraSearcher);
-            std::thread consumer_thread(&Consumer, std::ref(readings), std::ref(inverted_index_map), m_index, m_extraSearcher);
+            // print first element in inverted_index_map
+            // for (auto& query: inverted_index_map)
+            // {
+            //     std::cout << "Before Producer \n";
+            //     std::vector<SPTAG::QueryResult*> *query_result = query.second;
+            //     std::vector<SPTAG::QueryResult*> q = *query_result;
+            //     for(int i=0; i<q[0]->GetResultNum(); i++){
+            //         std::cout << q[0]->GetResult(i)->VID << " ";
+            //     }
+            //     // for(int i = 0; i < *(query.second)[0]->GetResultNum(); i++){
+            //     //         std::cout << *(query.second)[0]->GetResult(i)->VID << " ";
+            //     //     }
+            //     break;
+            // }
+            
+
+            std::thread producer_thread(&Producer<T>, std::ref(inverted_index), std::ref(readings), m_workSpacePool.get(), m_extraSearcher);
+            std::thread consumer_thread(&Consumer<T>, std::ref(readings), std::ref(inverted_index_map), m_index, m_extraSearcher);
             producer_thread.join();
-            // consumer_thread.join();
+            consumer_thread.join();
             
             // Print the readings queue 
             QueueData queueData ;
