@@ -436,7 +436,7 @@ VectorIndex::SearchIndex(const void* p_vector, int p_vectorCount, int p_neighbor
     size_t vectorSize = GetValueTypeSize(GetVectorValueType()) * GetFeatureDim();
 #pragma omp parallel for schedule(dynamic,10)
     for (int i = 0; i < p_vectorCount; i++) {
-        QueryResult res((char*)p_vector + i * vectorSize, p_neighborCount, p_withMeta, p_results + i * p_neighborCount);
+        QueryResult res((char*)p_vector + i * vectorSize, p_neighborCount, p_withMeta, p_results + i * p_neighborCount, i);
         SearchIndex(res);
     }
     return ErrorCode::Success;

@@ -47,6 +47,7 @@ namespace SPTAG
                 return workSpace;
             }
 
+
             void Return(const std::shared_ptr<T>& p_workSpace)
             {
                 m_workSpacePool.push(p_workSpace);

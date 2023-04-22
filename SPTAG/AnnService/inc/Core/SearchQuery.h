@@ -8,6 +8,7 @@
 
 #include <cstring>
 #include <unordered_set>
+#include <iostream>
 namespace SPTAG
 {
 
@@ -28,18 +29,24 @@ public:
     }
 
     // p_target is the target query you are searching for its nearest data
+
     QueryResult(const void* p_target, int p_resultNum, bool p_withMeta)
     {
         Init(p_target, p_resultNum, p_withMeta);
     }
-
     
-    QueryResult(const void* p_target, int p_resultNum, bool p_withMeta, BasicResult* p_results)
+    QueryResult(const void* p_target, int p_resultNum, bool p_withMeta, int id)
+    {
+        Init(p_target, p_resultNum, p_withMeta, id);
+    }
+    
+    QueryResult(const void* p_target, int p_resultNum, bool p_withMeta, BasicResult* p_results, int id)
         : m_target(p_target),
           m_resultNum(p_resultNum),
           m_withMeta(p_withMeta),
           m_quantizedTarget((void*)p_target),
-          m_quantizedSize(0)
+          m_quantizedSize(0),
+          m_queryID(id)
     {
         m_results.Set(p_results, p_resultNum, false);
     }
@@ -47,7 +54,10 @@ public:
 
     QueryResult(const QueryResult& p_other)
     {
-        Init(p_other.m_target, p_other.m_resultNum, p_other.m_withMeta);
+        if(p_other.m_queryID != 0)
+            Init(p_other.m_target, p_other.m_resultNum, p_other.m_withMeta, p_other.m_queryID);
+        else
+            Init(p_other.m_target, p_other.m_resultNum, p_other.m_withMeta);
         if (m_resultNum > 0)
         {
             std::copy(p_other.m_results.Data(), p_other.m_results.Data() + m_resultNum, m_results.Data());
@@ -64,8 +74,10 @@ public:
     QueryResult& operator=(const QueryResult& p_other)
     {
         if (m_target != m_quantizedTarget) ALIGN_FREE(m_quantizedTarget);
-
-        Init(p_other.m_target, p_other.m_resultNum, p_other.m_withMeta);
+        if(p_other.m_queryID != 0)
+            Init(p_other.m_target, p_other.m_resultNum, p_other.m_withMeta, p_other.m_queryID);
+        else
+            Init(p_other.m_target, p_other.m_resultNum, p_other.m_withMeta);
         if (m_resultNum > 0)
         {
             std::copy(p_other.m_results.Data(), p_other.m_results.Data() + m_resultNum, m_results.Data());
@@ -100,6 +112,18 @@ public:
         m_results = Array<BasicResult>::Alloc(p_resultNum);
     }
 
+    inline void Init(const void* p_target, int p_resultNum, bool p_withMeta, int id)
+    {
+        m_target = p_target;        // Query
+        m_resultNum = p_resultNum;  // K nearest neighbour
+        m_withMeta = p_withMeta;
+        m_quantizedTarget = (void*)p_target;
+        m_quantizedSize = 0;
+        m_queryID = id;
+
+        m_results = Array<BasicResult>::Alloc(p_resultNum);
+    }
+
 
     inline int GetResultNum() const
     {
@@ -130,6 +154,10 @@ public:
         m_quantizedSize = 0;
     }
     
+    inline int GetQueryID()
+    {
+        return m_queryID;
+    }
 
     inline bool HasQuantizedTarget()
     {
@@ -228,10 +256,12 @@ public:
         return m_results.Data() + m_resultNum;
     }
 
-    int m_queryID = 0;
     int m_cmpCounter = 0;
     std::unordered_set<int> m_vectorSet {0};
 protected:
+    
+    int m_queryID =0;
+    
     const void* m_target;
 
     void* m_quantizedTarget;

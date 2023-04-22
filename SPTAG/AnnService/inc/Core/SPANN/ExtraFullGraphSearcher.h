@@ -264,14 +264,19 @@ namespace SPTAG
                     request.m_success = false;
 
 #ifdef BATCH_READ // async batch read
-                    request.m_callback = [&p_exWorkSpace, &request, &requests_data ,pi, listElements ,this](bool success)
+                    request.m_callback = [&p_exWorkSpace, &request, &requests_data ,pi, listElements , curPostingID, this](bool success)
                     {
                         char* buffer = request.m_buffer;
                         ListInfo* listInfo = (ListInfo*)(request.m_payload);
 
                         // decompress posting list
                         char* p_postingListFullData = buffer + listInfo->pageOffset;
-                        requests_data.push( {*(listInfo), pi ,p_postingListFullData});
+                        if (m_enableDataCompression)
+                        {
+                            DecompressPosting();
+                        }
+                        
+                        requests_data.push( {*(listInfo), pi ,p_postingListFullData, p_exWorkSpace});
                     };
                     request_index++;
                 }
@@ -285,11 +290,16 @@ namespace SPTAG
             {
                 ListInfo &listInfo = queueData.listInfo;
                 char* p_postingListFullData = queueData.fullData;
-
+                    
                 std::vector<COMMON::QueryResultSet<ValueType>*> vecQueryResults;
                  for(auto& query : queries){
                     vecQueryResults.push_back(((COMMON::QueryResultSet<ValueType>*) query));
                 }
+
+                // std::cout << "vecQueryResults After casting: \n";
+                // for(int i=0; i<vecQueryResults[0]->GetResultNum(); i++){
+                //         std::cout << vecQueryResults[0]->GetResult(i)->VID << " ";
+                //     }
                                 
                 for (int i = 0; i < listInfo.listEleCount; i++) { 
                     uint64_t offsetVectorID, offsetVector;
@@ -322,18 +332,19 @@ namespace SPTAG
                     */
 
                     // #pragma omp parallel for schedule(static) num_threads(15)
+                    
                     for(auto &query: vecQueryResults){
                         if(query->isDuplicate(vectorID)){
                             continue;   
                         }
                         auto distance2leaf = p_index->ComputeDistance(query->GetQuantizedTarget(), p_postingListFullData + offsetVector);
                         query->m_cmpCounter++;
-                        // std::cout << "F Target: " << *query->GetQuantizedTarget() << " compared to: " << vectorID << " Distance: "  << distance2leaf <<std::endl;
+                        // if(query->GetQueryID() == 0)
+                            // std::cout << "F Target: " << " ID: " << query->GetQueryID() << " compared to: " << vectorID << " Distance: "  << distance2leaf <<std::endl;
                         query->AddPoint(vectorID, distance2leaf); 
                     }
+                    
                 } 
-                
-                
             }
             virtual void SearchIndex(ExtraWorkSpace* p_exWorkSpace,
                 QueryResult& p_queryResults,
@@ -359,6 +370,7 @@ namespace SPTAG
                 {
                     auto curPostingID = p_exWorkSpace->m_postingIDs[pi];
                     ListInfo* listInfo = &(m_listInfos[curPostingID]);
+                      
                     int fileid = m_oneContext? 0: curPostingID / m_listPerFile;
 
 #ifndef BATCH_READ
@@ -383,13 +395,15 @@ namespace SPTAG
                     request.m_success = false;
 
 #ifdef BATCH_READ // async batch read
-                    request.m_callback = [&p_exWorkSpace, &queryResults, &p_index, &request, pi, &comparisonCount,this](bool success)
+                    request.m_callback = [&p_exWorkSpace, &queryResults, &p_index, &request, pi, &comparisonCount, curPostingID, this](bool success)
                     {
                         char* buffer = request.m_buffer;
                         ListInfo* listInfo = (ListInfo*)(request.m_payload);
 
                         // decompress posting list
                         char* p_postingListFullData = buffer + listInfo->pageOffset;
+                        //print postinglist full data
+                        
                         if (m_enableDataCompression)
                         {
                             DecompressPosting();
@@ -419,7 +433,8 @@ namespace SPTAG
                             (this->*m_parseEncoding)(p_index, listInfo, (ValueType*)(p_postingListFullData + offsetVector));
                             comparisonCount++;
                             auto distance2leaf = p_index->ComputeDistance(queryResults.GetQuantizedTarget(), p_postingListFullData + offsetVector); 
-                            // std::cout << "SP Target: " << *(queryResults.GetQuantizedTarget()) << " compared to: " << vectorID << " Distance: "  << distance2leaf <<std::endl;
+                            // if(queryResults.GetQueryID() == 0)
+                                // std::cout << "SP Target: " << " ID: " << queryResults.GetQueryID() << " From Posting:  " << curPostingID << "compared to: " << vectorID << " Distance: "  << distance2leaf <<std::endl;
                             queryResults.AddPoint(vectorID, distance2leaf); 
                         } 
                         // std::cout << "Best result After cmp: " << queryResults.GetResult(0) << " --- " << queryResults.GetResult(queryResults.GetResultNum()-1) << std::endl;

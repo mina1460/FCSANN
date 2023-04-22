@@ -35,6 +35,10 @@ public:
     {
     }
 
+    QueryResultSet(const T* _target, int _K, int id) : QueryResult(_target, _K, false, id)
+    {
+    }
+
     QueryResultSet(const QueryResultSet& other) : QueryResult(other)
     {
     }

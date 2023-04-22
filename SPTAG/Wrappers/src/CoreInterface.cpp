@@ -227,9 +227,7 @@ AnnIndex::FakasuloSearch(ByteArray p_data, int p_vectorNum, int p_resultNum, boo
     
     for (int i = 0; i < p_vectorNum; i++) {
         int index = i * num_threads / p_vectorNum; 
-        QueryResult q_result = QueryResult(p_data.Data() + i * m_inputVectorSize, p_resultNum, p_withMetaData);
-        q_result.m_queryID = i;
-        queries[index].push_back(q_result);
+        queries[index].emplace_back(p_data.Data() + i * m_inputVectorSize, p_resultNum, p_withMetaData, i);
     }
     auto start = std::chrono::high_resolution_clock::now();
 

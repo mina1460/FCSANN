@@ -38,14 +38,11 @@ class ConcurrentQueue {
             return 0;
         }
         while (queue_.empty()) {
-        // std::cout << "Waitig Pop\n";
-        // std::cout << "Produced: " << produced << " Consumed: " << consumed << " Inverted Index Size: " << queue_.size() << "\n";
-        cond_.wait(mlock);
+            cond_.wait(mlock);
         }
         item = queue_.front();
         queue_.pop();
         consumed++;
-        // std::cout << "Queue size in consumer: " << queue_.size() << "\n";
         mlock.unlock();
         cond_.notify_one();
         return 1;
@@ -54,8 +51,7 @@ class ConcurrentQueue {
     void push(const T& item) {
         std::unique_lock<std::mutex> mlock(mutex_);
         // std::cout << "Pushing Fun\n";
-        if(!PushChecker()) {
-            std::cout << "PushChecker Failed\n";
+        if(!PushChecker()) {            
             return;
         }
         // while (queue_.size() >= BUFFER_SIZE) {
@@ -64,7 +60,14 @@ class ConcurrentQueue {
         // }
         // std::cout << "Pushing\n" << "Queue size: " << queue_.size() << "Batch read: "<< batch_read << "\n";
         
-        queue_.push(item);
+        
+        char *temp;
+        temp = new char[item.listInfo.listTotalBytes];
+        memcpy(temp, item.fullData, item.listInfo.listTotalBytes);
+        T newItem = item;
+        newItem.fullData = temp;
+        queue_.push(newItem);
+    
         
         // produced+=batch_read;
         produced++;
@@ -89,9 +92,9 @@ class ConcurrentQueue {
     }
 
     ConcurrentQueue()=default;
-    ConcurrentQueue(const ConcurrentQueue&) = delete;            // disable copying
+    // ConcurrentQueue(const ConcurrentQueue&) = delete;            // disable copying
     ConcurrentQueue& operator=(const ConcurrentQueue&) = delete; // disable assignment
-    ConcurrentQueue(int size) : inverted_index_size(size) {std::cout << "Inverted Index Size: " << inverted_index_size << "\n";} 
+    ConcurrentQueue(int size) : inverted_index_size(size) {} 
     private:
     std::queue<T> queue_;
     std::mutex mutex_;
@@ -104,6 +107,7 @@ class ConcurrentQueue {
 };
 namespace SPTAG {
     namespace SPANN {
+        struct QueueData;
         struct ListInfo
         {
             std::size_t listTotalBytes = 0;
@@ -116,11 +120,7 @@ namespace SPTAG {
 
             std::uint16_t pageOffset = 0;
         };
-        struct QueueData {
-            ListInfo listInfo;
-            int clusterID;
-            char* fullData;
-        };
+        
         struct SearchStats
         {
             SearchStats()
@@ -260,6 +260,12 @@ namespace SPTAG {
             static std::atomic_int g_spaceCount;
         };
 
+        struct QueueData {
+            ListInfo listInfo;
+            int clusterID;
+            char* fullData;
+            std::shared_ptr<ExtraWorkSpace> workSpace;
+        };
         class IExtraSearcher
         {
         public:
@@ -293,6 +299,8 @@ namespace SPTAG {
             virtual bool CheckValidPosting(SizeType postingID) = 0;
             virtual ListInfo GetListInfo(SizeType postingID){};
         };
+
+        
     } // SPANN
 } // SPTAG
 
