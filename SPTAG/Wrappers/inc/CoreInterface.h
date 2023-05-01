@@ -44,6 +44,8 @@ public:
 
     std::vector<QueryResult> FakasuloSearch(ByteArray p_data, int p_vectorNum, int p_resultNum, bool p_withMetaData, int p_numThreads);
     
+    std::vector<QueryResult> FakasuloSearchProdCons(ByteArray p_data, int p_vectorNum, int p_resultNum, bool p_withMetaData, int p_numThreads);
+    
     bool ReadyToServe() const;
 
     void UpdateIndex();

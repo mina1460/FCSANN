@@ -123,6 +123,10 @@ namespace SPTAG
             ErrorCode SearchIndex(QueryResult &p_query, bool p_searchDeleted = false) const;
 
             ErrorCode SearchIndex(std::vector<QueryResult> &queries, bool p_searchDeleted = false) const;
+            
+            ErrorCode SelectHeads(std::vector<QueryResult> &queries,int index, std::vector< COMMON::QueryResultSet<T>* > &vecQueryResultSet, ConcurrentQueue<QueueData>& readings, bool p_searchDeleted = false) const;
+            ErrorCode ThreadedSelectHeads(std::vector<std::vector<SPTAG::QueryResult>> &queries, int num_threads) const;
+
 
             ErrorCode SearchDiskIndex(QueryResult& p_query, SearchStats* p_stats = nullptr) const;
             ErrorCode DebugSearchDiskIndex(QueryResult& p_query, int p_subInternalResultNum, int p_internalResultNum,
@@ -144,12 +148,7 @@ namespace SPTAG
             ErrorCode RefineIndex(const std::vector<std::shared_ptr<Helper::DiskIO>>& p_indexStreams, IAbortOperation* p_abort) { return ErrorCode::Undefined; }
             ErrorCode RefineIndex(std::shared_ptr<VectorIndex>& p_newIndex) { return ErrorCode::Undefined; }
 
-            // void Consumer(ConcurrentQueue<QueueData>& readings, std::map<int, std::vector<SPTAG::QueryResult*>*> &inverted_index_map);
-            // void Producer(/*std::vector<inverted_index_node>& inverted_index, */ConcurrentQueue<QueueData>& readings);
-
-            // ErrorCode LoadFromDisk
-
-        
+               
         private:
             bool CheckHeadIndexType();
             void SelectHeadAdjustOptions(int p_vectorCount);
@@ -160,6 +159,10 @@ namespace SPTAG
             bool SelectHeadInternal(std::shared_ptr<Helper::VectorSetReader>& p_reader);
 
             ErrorCode BuildIndexInternal(std::shared_ptr<Helper::VectorSetReader>& p_reader);
+            //Question: Are the centroids always an INT?
+            mutable std::map <int, std::vector<int>> m_headThreadMap; // CentroidID -> ThreadID
+            mutable std::mutex m_headThreadMapMutex;
+            mutable std::vector< std::map<int, std::vector<SPTAG::COMMON::QueryResultSet<T>*>*>> m_inverted_indexs;
         };
     } // namespace SPANN
 } // namespace SPTAG

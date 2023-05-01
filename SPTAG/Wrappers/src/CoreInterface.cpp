@@ -215,6 +215,54 @@ void ThreadedSearch(std::shared_ptr<SPTAG::VectorIndex> &vecIndex, std::vector<s
      vecIndex->SearchIndex(queries[i]);
 }
 
+
+std::vector<QueryResult>
+AnnIndex::FakasuloSearchProdCons(ByteArray p_data, int p_vectorNum, int p_resultNum, bool p_withMetaData, int p_num_threads)
+{ 
+
+    int num_threads = p_num_threads;
+    std::thread threadPool[num_threads];
+    std::vector<std::vector<SPTAG::QueryResult>> queries(num_threads, std::vector<SPTAG::QueryResult>());
+
+    std::vector<QueryResult> input_queries; 
+    
+    for (int i = 0; i < p_vectorNum; i++) {
+        int index = i * num_threads / p_vectorNum; 
+        queries[index].emplace_back(p_data.Data() + i * m_inputVectorSize, p_resultNum, p_withMetaData, i);
+    }
+    auto start = std::chrono::high_resolution_clock::now();
+
+    m_index->ThreadedSelectHeads(queries, num_threads);
+
+    // for(int i=0; i<num_threads; i++){
+    //     threadPool[i] = std::thread(ThreadedSearch, std::ref(m_index) ,std::ref(queries), i);
+    // }
+
+    // for(int i=0; i<num_threads; i++){
+    //     threadPool[i].join();
+    // }
+
+    // auto finish = std::chrono::high_resolution_clock::now();
+    // std::chrono::duration<double> elapsed = finish - start;
+    // std::cout << "Elapsed time: " << elapsed.count() << " s\n";
+
+   
+    // int our_index = 0;
+    // int k= p_resultNum;
+    
+ 
+    // // Add the results to the input_queries
+    // int counter = 0 ;
+    for(int i=0; i<num_threads; i++){
+        for(auto& query: queries[i]){
+            input_queries.push_back(query);
+        }
+    }
+
+
+    return std::move(input_queries);
+}
+
 std::vector<QueryResult>
 AnnIndex::FakasuloSearch(ByteArray p_data, int p_vectorNum, int p_resultNum, bool p_withMetaData, int p_num_threads)
 { 

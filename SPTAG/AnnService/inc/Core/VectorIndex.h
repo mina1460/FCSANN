@@ -153,6 +153,8 @@ public:
 
     void BuildMetaMapping(bool p_checkDeleted = true);
 
+    virtual ErrorCode ThreadedSelectHeads(std::vector<std::vector<SPTAG::QueryResult>> &queries, int num_threads) const = 0;
+
 private:
     ErrorCode LoadIndexConfig(Helper::IniReader& p_reader);
 

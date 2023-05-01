@@ -17,6 +17,7 @@ namespace SPTAG
 {
     namespace SPANN
     {
+        std::mutex special_mutex;
         std::atomic_int ExtraWorkSpace::g_spaceCount(0);
         EdgeCompare Selection::g_edgeComparer;
 
@@ -238,15 +239,9 @@ namespace SPTAG
                         !m_extraSearcher->CheckValidPosting(postingID)) 
                         continue;
                     workSpace->m_postingIDs.emplace_back(postingID);
-                    // std::cout << "SPTAG postingID: " << postingID << "\n";
-                    posting_counter++;
                 }
                 
                 p_queryResults->Reverse();
-                // std::cout << "SPTAG Before Search: " << p_queryResults->GetQueryID() << "\n";                
-                // for(int i=0; i<p_queryResults->GetResultNum(); i++){
-                //     std::cout << "(" << p_queryResults->GetResult(i)->VID << " , " << p_queryResults->GetResult(i)->Dist << ") -";
-                // }
                 m_extraSearcher->SearchIndex(workSpace.get(), *p_queryResults, m_index, nullptr);
                 m_workSpacePool->Return(workSpace);
                 p_queryResults->SortResult();
@@ -267,27 +262,8 @@ namespace SPTAG
                     p_query.SetMetadata(i, (result < 0) ? ByteArray::c_empty : m_pMetadata->GetMetadataCopy(result));
                 }
             }
-            // std::cout << "-------SPTAG Working-----------------\n";
             return ErrorCode::Success;
         }
-
-        // template <typename T>
-        // // ErrorCode Index<T>::LoadFromDisk(std::shared_ptr<ExtraWorkSpace> workSpace)
-        // {
-        //     int read_count = std::min(BATCH_READ_COUNT, (int)inverted_index.size()-loop_index);
-        //         // prepare disk requests for batch read async 
-
-        //         std::vector<int> read_list(read_count); //Cluster_Ids to read
-        //         for(int j=0; j<read_count; j++){
-        //             read_list[j] = inverted_index[loop_index+j].get_cluster_id();;
-        //         } 
-        //         workSpace = m_workSpacePool->Rent();
-        //         workSpace->m_deduper.clear();
-        //         workSpace->m_postingIDs.clear();
-        //         m_extraSearcher->LoadFromDisk(workSpace,read_list, readings);
-        //         m_workSpacePool->Return(workSpace);
-        // }     
-
 
         // Our producer
         template <typename T>
@@ -309,10 +285,50 @@ namespace SPTAG
                     workSpace = m_workSpacePool->Rent();
                     workSpace->m_deduper.clear();
                     workSpace->m_postingIDs.clear();
-                    m_extraSearcher->LoadFromDisk(workSpace,read_list, readings);   
+                    // m_extraSearcher->LoadFromDisk(workSpace,read_list, readings);   
                     m_workSpacePool->Return(workSpace);
                 }
-                // std::cout << "--------Producer count: " << producion_count << std::endl;
+        }
+        
+        template <typename T>
+        void NewProducer(std::map <int, std::vector<int>>& centroidThreadMap, ConcurrentQueue<QueueData>& readings,
+        COMMON::WorkSpacePool<ExtraWorkSpace>*m_workSpacePool, std::shared_ptr<IExtraSearcher> m_extraSearcher,
+        int offset, int count)
+        {   
+            std::shared_ptr<ExtraWorkSpace> workSpace = nullptr;
+
+            int index_read = 0;
+
+            std::map<int, std::vector<int>>::iterator start_it = centroidThreadMap.begin();
+            std::advance(start_it, offset);
+            
+            std::map<int, std::vector<int>>::iterator end_it;
+
+            if (std::distance(start_it, centroidThreadMap.end()) > static_cast<std::ptrdiff_t>(count)) {
+                end_it = std::next(start_it, count);
+            } else {
+                end_it = centroidThreadMap.end();
+            }
+            
+
+            std::vector<int> read_list;
+                while(readings.PushChecker()){
+                    int read_count = std::min(BATCH_READ_COUNT, (int)centroidThreadMap.size()-readings.getProudced());
+                    // prepare disk requests for batch read async 
+                    
+                    read_list.clear(); //Cluster_Ids to read
+                    while(start_it != end_it && read_count > 0){
+                        read_list.push_back(start_it->first);
+                        start_it++;
+                        read_count--;
+                    }
+
+                    workSpace = m_workSpacePool->Rent();
+                    workSpace->m_deduper.clear();
+                    workSpace->m_postingIDs.clear();
+                    m_extraSearcher->LoadFromDisk(workSpace,read_list, readings, centroidThreadMap);   
+                    m_workSpacePool->Return(workSpace);
+                }
         }
 
         // Our consumer 
@@ -336,11 +352,35 @@ namespace SPTAG
                 }
                 m_extraSearcher->SearchInvertedIndex(nullptr, q_vector,
                     nullptr, m_index_ptr, queueData);
-                delete queueData.fullData;
+                // delete queueData.fullData;
                 consumer_count++;
             }
             // std::cout << "--------Consumer count: " << consumer_count << std::endl;
         }
+
+        template <typename T>
+        void NewConsumer(ConcurrentQueue<QueueData>& readings, std::map<int, std::vector<SPTAG::COMMON::QueryResultSet<T>*>*>&inverted_index_map,
+         std::shared_ptr<VectorIndex> m_index_ptr, std::shared_ptr<SPTAG::SPANN::IExtraSearcher> m_extraSearcher, int thread_index){
+            QueueData queueData;
+            while(readings.PopFromMultiQueue(queueData, thread_index)){                    
+                int cluster_id = queueData.clusterID;
+
+                std::vector<QueryResult*> q_vector;
+                std::vector<SPTAG::COMMON::QueryResultSet<T>*> &p_queryResults = *(inverted_index_map[cluster_id]);
+
+                for (int i = 0; i < p_queryResults.size(); i++)
+                {
+                    QueryResult* p_query = dynamic_cast<QueryResult*>(p_queryResults[i]);
+                    q_vector.push_back(p_query);
+                }
+                m_extraSearcher->SearchInvertedIndex(nullptr, q_vector,
+                    nullptr, m_index_ptr, queueData);
+                // TODO: 
+                // delete queueData.fullData;
+            }
+        }
+
+        //Our search
         template<typename T>
         ErrorCode Index<T>::SearchIndex(std::vector<QueryResult> &queries, bool p_searchDeleted) const
         {
@@ -360,10 +400,7 @@ namespace SPTAG
 
                 COMMON::QueryResultSet<T>* p_queryResults = vecQueryResultSet[query];
                 m_index->SearchIndex(*p_queryResults);
-                // std::cout << "\n FAKASULO After Search \n";                
-                // for(int i=0; i<p_queryResults->GetResultNum(); i++){
-                //         std::cout << p_queryResults->GetResult(i)->VID << " ";
-                //     }
+                
                 std::shared_ptr<ExtraWorkSpace> workSpace = nullptr;
                 if (m_extraSearcher != nullptr) {
                     workSpace = m_workSpacePool->Rent();
@@ -400,16 +437,22 @@ namespace SPTAG
 
             }
             auto end_time_search = std::chrono::high_resolution_clock::now();
-            std::cout << "\nSearch before Fakasulo: " << std::chrono::duration_cast<std::chrono::milliseconds>(end_time_search-start_time_search).count() << std::endl;
-
+            //print next line in blue 
+            m_headThreadMapMutex.lock();
+            std::cout << "\n \033[1;34m Select Heads Time: \033[0m" << std::chrono::duration_cast<std::chrono::milliseconds>(end_time_search-start_time_search).count() << std::endl;
+            m_headThreadMapMutex.unlock();
+            
             //Time fakasulo module
             auto start_time_fakasulo = std::chrono::high_resolution_clock::now();
             Fakasulo<T> fakasulo(input_queries);
             fakasulo.process();
             auto end_time_fakasulo = std::chrono::high_resolution_clock::now();
-            std::cout << "Fakasulo inverting time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end_time_fakasulo-start_time_fakasulo).count() << std::endl;
+
+            m_headThreadMapMutex.lock();
+            std::cout << "\033[1;34m Fakasulo inverting time: \033[0m" << std::chrono::duration_cast<std::chrono::milliseconds>(end_time_fakasulo-start_time_fakasulo).count() <<std::endl;
+            m_headThreadMapMutex.unlock();
+
             std::vector<inverted_index_node<T>> inverted_index = fakasulo.get_inverted_index();
-             // Different queries for invert
             std::map<int, std::vector<SPTAG::COMMON::QueryResultSet<T>*>*> inverted_index_map = fakasulo.get_inverted_index_map();
 
             std::shared_ptr<ExtraWorkSpace> workSpace = nullptr; 
@@ -455,45 +498,7 @@ namespace SPTAG
             // consumer_thread2.join();
             // consumer_thread3.join();
             
-            // Print the readings queue 
-            QueueData queueData ;
-            std::cout <<readings.size() << "Printing the queue:\n";
-            // while(readings.pop(queueData)){
-            //     std::cout << "Cluster id: " << queueData.clusterID << std::endl;
-            // }
-
-            // while(loop_index < inverted_index.size()){
-            //     //read here the batch of clusters
-
-            //     //producer
-            //     // TODO: 
-            //     // int read_count = std::min(BATCH_READ_COUNT, (int)inverted_index.size()-loop_index);
-            //     // // prepare disk requests for batch read async 
-
-            //     // std::vector<int> read_list(read_count); //Cluster_Ids to read
-            //     // for(int j=0; j<read_count; j++){
-            //     //     read_list[j] = inverted_index[loop_index+j].get_cluster_id();;
-            //     // } 
-            //     // workSpace = m_workSpacePool->Rent();
-            //     // workSpace->m_deduper.clear();
-            //     // workSpace->m_postingIDs.clear();
-            //     // m_extraSearcher->LoadFromDisk(workSpace,read_list, readings);
-            //     // m_workSpacePool->Return(workSpace);
-
-                
-            //     //consumer
-            //     // int processed = 0;
-            //     // while(readings.size() > 0){                    
-            //     //     QueueData queueData = readings.front();
-            //     //     int cluster_id = queueData.clusterID;
-            //     //     readings.pop();
-            //     //     m_extraSearcher->SearchInvertedIndex(nullptr, *(inverted_index_map[cluster_id]),
-            //     //         nullptr, m_index, queueData);
-            //     //     processed++;
-            //     // }
-            //     // loop_index += read_count;
-            // }
-        
+            
             for(int i=0; i<vecQueryResultSet.size(); i++){
                 // auto* qs = (COMMON::QueryResultSet<T>*) & query;
                 auto query_set = vecQueryResultSet[i];
@@ -509,37 +514,171 @@ namespace SPTAG
             // std::cout << "Fakasulo time without inverted index construction: " << int_ms.count() << std::endl; 
             return ErrorCode::Success;
         }
+        
+        template<typename T>
+        ErrorCode Index<T>::SelectHeads(std::vector<QueryResult> &queries, int thread_index, 
+        std::vector< COMMON::QueryResultSet<T>* > &vecQueryResultSet, ConcurrentQueue<QueueData>& readings,
+        bool p_searchDeleted) const
+        {
 
+            auto start_time_search = std::chrono::high_resolution_clock::now();
+            if (!m_bReady) return ErrorCode::EmptyIndex;
 
-
-        // Mapper Reducer Implementation
-        // template<typename T>
-        // ErrorCode Index<T>::SearchIndex(std::vector<QueryResult> &queries, bool p_searchDeleted) const
-        // {
-        //     //time
-        //     auto start_time_search = std::chrono::high_resolution_clock::now();
-        //     if (!m_bReady) return ErrorCode::EmptyIndex;
+            std::vector<input_query<T>> input_queries;
             
-        //     int num_of_threads = 1;
-        //     std::vector<std::map<int, std::list<std::vector<SPTAG::QueryResult*>>*>> results;
-        //     mapper_launcher(queries, num_of_threads, results);
-        //     auto merged_map = merge_maps(results, num_of_threads);
-        //     for (auto& query: vecQueryResultSet)
-            //     {
-            //         query->Reverse(); 
-            //     }
-        //     reducer_launcher(merged_map, num_of_threads);
+            for (int query =0; query<queries.size(); query++)
+            {
+                QueryResult &p_query = queries[query];
+                if (p_query.GetResultNum() >= m_options.m_searchInternalResultNum) 
+                    vecQueryResultSet.push_back( (COMMON::QueryResultSet<T>*) & p_query );
+                else
+                    vecQueryResultSet.push_back( new COMMON::QueryResultSet<T>((const T*)p_query.GetTarget(), m_options.m_searchInternalResultNum, p_query.GetQueryID()) );
 
-        //     for(auto& query: queries){
-        //         auto* qs = (COMMON::QueryResultSet<T>*) & query;
-        //         qs->SortResult();
-        //     }
-        //     auto end_time_after_fakasulo = std::chrono::high_resolution_clock::now();
-        //     // auto int_ms = std::chrono::duration_cast<std::chrono::milliseconds> (end_time_after_fakasulo - start_time_after_fakasulo) ;
-        //     // std::cout << "Fakasulo time without inverted index construction: " << int_ms.count() << std::endl; 
-        //     return ErrorCode::Success;
-        // }
+                COMMON::QueryResultSet<T>* p_queryResults = vecQueryResultSet[query];
+                m_index->SearchIndex(*p_queryResults);
 
+                std::shared_ptr<ExtraWorkSpace> workSpace = nullptr;
+                if (m_extraSearcher != nullptr) {
+                    workSpace = m_workSpacePool->Rent();
+                    workSpace->m_deduper.clear();
+                    workSpace->m_postingIDs.clear();
+
+                    float limitDist = p_queryResults->GetResult(0)->Dist * m_options.m_maxDistRatio;
+                    for (int i = 0; i < p_queryResults->GetResultNum(); ++i)
+                    {
+                        auto res = p_queryResults->GetResult(i);
+                        if (res->VID == -1) break;
+
+                        auto postingID = res->VID;
+                        p_queryResults->m_vectorSet.erase(res->VID);
+                        res->VID = static_cast<SizeType>((m_vectorTranslateMap.get())[res->VID]);
+                        p_queryResults->m_vectorSet.insert(res->VID);
+                        
+                        if (res->VID == MaxSize) {
+                            res->VID = -1;
+                            res->Dist = MaxDist;
+                        }
+
+                        // Don't do disk reads for irrelevant pages
+                        if (workSpace->m_postingIDs.size() >= m_options.m_searchInternalResultNum || 
+                            (limitDist > 0.1 && res->Dist > limitDist) || 
+                            !m_extraSearcher->CheckValidPosting(postingID)) 
+                            continue;
+                        workSpace->m_postingIDs.emplace_back(postingID);
+                    }
+                    //We are pushing a copy of the input query
+                    input_queries.emplace_back(query, *vecQueryResultSet[query] ,workSpace->m_postingIDs);
+                    m_workSpacePool->Return(workSpace);
+                }
+
+            }
+            auto end_time_search = std::chrono::high_resolution_clock::now();
+            m_headThreadMapMutex.lock();
+            std::cout << "\n\033[1;34mSelect Heads Time t[" << thread_index<< "]: \033[0m" << std::chrono::duration_cast<std::chrono::milliseconds>(end_time_search-start_time_search).count() << std::endl;
+            m_headThreadMapMutex.unlock();
+
+            //Time fakasulo module
+            auto start_time_fakasulo = std::chrono::high_resolution_clock::now();
+            Fakasulo<T> fakasulo(input_queries);
+            fakasulo.process();
+            auto end_time_fakasulo = std::chrono::high_resolution_clock::now();
+            
+            m_headThreadMapMutex.lock();
+            std::cout << "\033[1;34mFakasulo inverting time t[" << thread_index << "]: \033[0m" << std::chrono::duration_cast<std::chrono::milliseconds>(end_time_fakasulo-start_time_fakasulo).count() <<std::endl;
+            m_headThreadMapMutex.unlock();
+
+            m_inverted_indexs[thread_index] = fakasulo.get_inverted_index_map();
+
+            for (auto& query: vecQueryResultSet)
+            {
+                query->Reverse(); 
+            }
+
+
+            m_headThreadMapMutex.lock();
+            for (auto q:  m_inverted_indexs[thread_index])
+            {
+                m_headThreadMap[q.first].push_back(thread_index);
+                readings.incrementThreadQueueSize(thread_index);
+            }
+            m_headThreadMapMutex.unlock();
+            
+            return ErrorCode::Success;
+        }
+
+
+        template<typename T>
+        ErrorCode Index<T>::ThreadedSelectHeads(std::vector<std::vector<SPTAG::QueryResult>> &queries, int num_threads) const 
+        {
+            std::cout << "Threaded Select Head: " << queries.size() <<std::endl;
+            
+            int num_of_producers = 3;
+            std::thread producers_threads[num_of_producers];
+
+            m_inverted_indexs.resize(num_threads);
+            std::vector<std::vector< COMMON::QueryResultSet<T>* >> vecQueryResultSet(num_threads);
+            ConcurrentQueue <QueueData >readings;    // Create queue for each thread
+            readings.initThreads(num_threads);          // Initialize the queue for each thread
+            std::thread threadPool[num_threads];
+
+            for(int i=0; i<num_threads; i++){
+                std::cout << "Thread: " << i << " assigned #ofQueries = " << queries[i].size()<< std::endl;
+                threadPool[i] = std::thread(&Index<T>::SelectHeads, this, std::ref(queries[i]), i, std::ref(vecQueryResultSet[i]), std::ref(readings) ,false);
+            }         
+
+            for(int i=0; i<num_threads; i++){
+                threadPool[i].join();
+            }
+            
+            std::cout << "Threaded Select Head [m_headThreadMap].size(): " << m_headThreadMap.size() <<std::endl;
+            readings.setInvertedIndexSize(m_headThreadMap.size());
+
+            int items_count = m_headThreadMap.size();
+            int items_per_thread = items_count / num_of_producers;
+            
+            for(int i=0; i<num_of_producers; i++){
+                std::cout << "producer thread " << i << " created \n";
+                if(i == num_of_producers-1){
+                    items_count += items_count % num_of_producers;
+                }
+                    producers_threads[i] = std::thread(&NewProducer<T>, std::ref(m_headThreadMap), std::ref(readings), m_workSpacePool.get(), m_extraSearcher, i*items_per_thread, items_count);
+            }
+            
+
+            // std::thread producer_thread(&NewProducer<T>, std::ref(m_headThreadMap), std::ref(readings), m_workSpacePool.get(), m_extraSearcher);
+        
+            std::thread threadPool2[num_threads];
+            std::mutex m_mutex;
+            for(int i=0; i<num_threads; i++){
+                std::cout << "Consumer thread " << i << " created \n";
+                threadPool2[i] = std::thread(&NewConsumer<T>, std::ref(readings), std::ref(m_inverted_indexs[i]), m_index, m_extraSearcher, i);
+            }
+
+            
+            for(int i=0; i<num_threads; i++){
+                threadPool2[i].join();
+            }
+            for(int i=0; i<num_of_producers; i++){
+                producers_threads[i].join();
+            }
+            // producer_thread.join();
+            std::cout << "Producer thread joined" << std::endl;
+            std::cout << "Consumer threads joined" << std::endl;
+
+            for(int i=0; i<vecQueryResultSet.size(); i++){
+                for(int j=0; j<vecQueryResultSet[i].size(); j++){
+                    auto query_set = vecQueryResultSet[i][j];
+                    query_set->SortResult();
+                    if (queries[i][j].GetResultNum() < m_options.m_searchInternalResultNum) {
+                        std::copy(query_set->GetResults(), query_set->GetResults() + queries[i][j].GetResultNum(), queries[i][j].GetResults());
+                    }else{
+                        std::copy(query_set->GetResults(), query_set->GetResults() + m_options.m_searchInternalResultNum, queries[i][j].GetResults());
+                    }
+                }
+            }
+
+            return ErrorCode::Success;
+        }
 
         template <typename T>
         ErrorCode Index<T>::SearchDiskIndex(QueryResult& p_query, SearchStats* p_stats) const

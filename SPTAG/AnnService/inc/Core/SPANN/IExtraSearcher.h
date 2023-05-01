@@ -17,6 +17,7 @@
 template <typename T>
 class ConcurrentQueue {
     public:
+
     T pop() {
         std::unique_lock<std::mutex> mlock(mutex_);
         while (queue_.empty()) {
@@ -48,18 +49,62 @@ class ConcurrentQueue {
         return 1;
     }
 
+    bool PopFromMultiQueue(T& item, int index){
+        std::unique_lock<std::mutex> mlock(mutex_);
+        if(consumed_vec[index] >= thread_queue_size[index]) return 0;
+
+        while(queue_vec[index].empty()) 
+            cond_.wait(mlock);
+        
+        item = queue_vec[index].front();
+        queue_vec[index].pop();
+        consumed_vec[index]++;
+        mlock.unlock();
+        cond_.notify_one();
+        return 1;
+    }
+
+    // void pushInMultiQueue(const T& item, int index){
+    //     if(index >= queue_vec.size()) {
+    //         std::cout << "Error: Index out of range\n";
+    //         return;
+    //     }
+        
+    //     if(!PushChecker()) {            
+    //         return;
+    //     }
+
+    //     char *temp;
+    //     temp = new char[item.listInfo.listTotalBytes];
+    //     memcpy(temp, item.fullData, item.listInfo.listTotalBytes);
+    //     T newItem = item;
+    //     newItem.fullData = temp;
+    //     std::unique_lock<std::mutex> mlock(mutex_);
+    //     queue_vec[index].push(newItem);
+    //     mlock.unlock();
+    //     cond_.notify_one();
+    // }
+
+    void pushInMultiQueue(const T& item, std::vector<int> &indexes){
+        
+        if(!PushChecker()) {            
+            return;
+        }
+
+        std::unique_lock<std::mutex> mlock(mutex_);
+        for(auto index : indexes)
+            queue_vec[index].push(item);
+        
+        mlock.unlock();
+        cond_.notify_one();
+    }
+
     void push(const T& item) {
         std::unique_lock<std::mutex> mlock(mutex_);
         // std::cout << "Pushing Fun\n";
         if(!PushChecker()) {            
             return;
         }
-        // while (queue_.size() >= BUFFER_SIZE) {
-        // std::cout << "Waitig Push\n";
-        // cond_.wait(mlock);
-        // }
-        // std::cout << "Pushing\n" << "Queue size: " << queue_.size() << "Batch read: "<< batch_read << "\n";
-        
         
         char *temp;
         temp = new char[item.listInfo.listTotalBytes];
@@ -74,6 +119,7 @@ class ConcurrentQueue {
         mlock.unlock();
         cond_.notify_one();
     }
+
     bool PushChecker() {
         // std::unique_lock<std::mutex> mlock(mutex_);
         if(produced >= inverted_index_size) {
@@ -81,22 +127,58 @@ class ConcurrentQueue {
         }
         return 1;
     }
+
     int getProudced() {
         return produced;
     }
+
+    void IncrementProduced() {
+        produced++;
+    }
+
     void setBatchRead(int batch_read) {
         this->batch_read = batch_read;
     }
+
     size_t size() {
         return produced;
+    }
+
+    void incrementThreadQueueSize(int index) {
+        thread_queue_size[index]++;
+    }
+
+    void initThreads(int size) {
+        queue_vec.resize(size);
+        consumed_vec.resize(size);
+        thread_queue_size.resize(size);
+    }
+
+    void setInvertedIndexSize(int size) {
+        inverted_index_size = size;
     }
 
     ConcurrentQueue()=default;
     // ConcurrentQueue(const ConcurrentQueue&) = delete;            // disable copying
     ConcurrentQueue& operator=(const ConcurrentQueue&) = delete; // disable assignment
     ConcurrentQueue(int size) : inverted_index_size(size) {} 
+    ConcurrentQueue(int invertedIndexSize, int queueSize){
+        inverted_index_size = invertedIndexSize;
+        queue_vec.resize(queueSize);
+
+        // produced_vec.resize(queueSize);
+
+        consumed_vec.resize(queueSize);
+        thread_queue_size.resize(queueSize);
+    }
     private:
     std::queue<T> queue_;
+    
+    std::vector<std::queue<T>> queue_vec;
+    // std::vector<int> produced_vec;
+    std::vector<int> consumed_vec;
+    std::vector<int> thread_queue_size;
+
     std::mutex mutex_;
     std::condition_variable cond_;
     // const static unsigned int BUFFER_SIZE = 100;
@@ -263,7 +345,7 @@ namespace SPTAG {
         struct QueueData {
             ListInfo listInfo;
             int clusterID;
-            char* fullData;
+            std::shared_ptr<char> fullData;
             std::shared_ptr<ExtraWorkSpace> workSpace;
         };
         class IExtraSearcher
@@ -290,7 +372,7 @@ namespace SPTAG {
                         SearchStats* p_stats, std::shared_ptr<VectorIndex> p_index, QueueData queueData) {};
 
             virtual void LoadFromDisk(std::shared_ptr<ExtraWorkSpace> p_exWorkSpace, std::vector<int> p_posting_ids, 
-                                        ConcurrentQueue<QueueData>& requests_data ) {};
+                                        ConcurrentQueue<QueueData>& requests_data, std::map <int, std::vector<int>>& centroidThreadMap ) {};
 
             virtual bool BuildIndex(std::shared_ptr<Helper::VectorSetReader>& p_reader, 
                 std::shared_ptr<VectorIndex> p_index, 

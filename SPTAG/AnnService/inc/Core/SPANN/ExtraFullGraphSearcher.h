@@ -20,6 +20,7 @@ namespace SPTAG
 {
     namespace SPANN
     {
+        // std::mutex special_mutex;
         
         extern std::function<std::shared_ptr<Helper::DiskIO>(void)> f_createAsyncIO;
 
@@ -218,7 +219,7 @@ namespace SPTAG
 
             // Load from Disk Our implementation
             virtual void LoadFromDisk(std::shared_ptr<ExtraWorkSpace> p_exWorkSpace, std::vector<int> p_posting_ids, 
-                                        ConcurrentQueue<QueueData >& requests_data ) override {
+                                        ConcurrentQueue<QueueData >& requests_data, std::map <int, std::vector<int>>& centroidThreadMap ) override {
                 
                 const uint32_t postingListCount = static_cast<uint32_t>(p_posting_ids.size());
  
@@ -264,7 +265,7 @@ namespace SPTAG
                     request.m_success = false;
 
 #ifdef BATCH_READ // async batch read
-                    request.m_callback = [&p_exWorkSpace, &request, &requests_data ,pi, listElements , curPostingID, this](bool success)
+                    request.m_callback = [&p_exWorkSpace, &request, &requests_data ,pi, listElements, &centroidThreadMap, this](bool success)
                     {
                         char* buffer = request.m_buffer;
                         ListInfo* listInfo = (ListInfo*)(request.m_payload);
@@ -276,7 +277,18 @@ namespace SPTAG
                             DecompressPosting();
                         }
                         
-                        requests_data.push( {*(listInfo), pi ,p_postingListFullData, p_exWorkSpace});
+                        std::vector<int> threadIds = centroidThreadMap[pi];
+
+                        //TODO : check if this is the right way to do it (create multiple copies of temp object )
+                        std::shared_ptr<char> data_ptr(new char[listInfo->listTotalBytes], std::default_delete<char[]>());
+
+                        // std::shared_ptr<char> data_ptr = std::make_shared<char>(new char[listInfo->listTotalBytes]);
+                        memcpy(data_ptr.get(), p_postingListFullData, listInfo->listTotalBytes);
+                        QueueData queueData = {*(listInfo), pi ,data_ptr, p_exWorkSpace};
+
+                        requests_data.pushInMultiQueue(queueData, threadIds);
+                        requests_data.IncrementProduced();
+                        // requests_data.push( {*(listInfo), pi ,p_postingListFullData, p_exWorkSpace});
                     };
                     request_index++;
                 }
@@ -289,7 +301,7 @@ namespace SPTAG
                         SearchStats* p_stats, std::shared_ptr<VectorIndex> p_index, QueueData queueData) override
             {
                 ListInfo &listInfo = queueData.listInfo;
-                char* p_postingListFullData = queueData.fullData;
+                std::shared_ptr<char> p_postingListFullData = queueData.fullData;
                     
                 std::vector<COMMON::QueryResultSet<ValueType>*> vecQueryResults;
                  for(auto& query : queries){
@@ -306,11 +318,11 @@ namespace SPTAG
                             
                     (this->*m_parsePosting)(offsetVectorID, offsetVector, i, listInfo.listEleCount);
                             
-                    int vectorID = *(reinterpret_cast<int*>(p_postingListFullData + offsetVectorID));
+                    int vectorID = *(reinterpret_cast<int*>(p_postingListFullData.get() + offsetVectorID));
                      
                     // if (p_exWorkSpace->m_deduper.CheckAndSet(vectorID)) continue; 
                             
-                    (this->*m_parseEncoding)(p_index, &listInfo, (ValueType*)(p_postingListFullData + offsetVector));
+                    (this->*m_parseEncoding)(p_index, &listInfo, (ValueType*)(p_postingListFullData.get() + offsetVector));
                     // std::cout << "-------------Fakasulo----------------" << std::endl;
                     // std::cout << "PostingID: " << p_exWorkSpace->m_postingIDs[pi]<< "List ele count: " << listInfo->listEleCount << std::endl;
                     // std::cout << "Best result before cmp: " << queryResults.GetResult(0) << " --- " << queryResults.GetResult(queryResults.GetResultNum()-1) << std::endl;
@@ -337,7 +349,7 @@ namespace SPTAG
                         if(query->isDuplicate(vectorID)){
                             continue;   
                         }
-                        auto distance2leaf = p_index->ComputeDistance(query->GetQuantizedTarget(), p_postingListFullData + offsetVector);
+                        auto distance2leaf = p_index->ComputeDistance(query->GetQuantizedTarget(), p_postingListFullData.get() + offsetVector);
                         query->m_cmpCounter++;
                         // if(query->GetQueryID() == 0)
                             // std::cout << "F Target: " << " ID: " << query->GetQueryID() << " compared to: " << vectorID << " Distance: "  << distance2leaf <<std::endl;

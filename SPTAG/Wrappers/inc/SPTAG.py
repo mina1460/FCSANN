@@ -106,6 +106,9 @@ class AnnIndex(object):
     def FakasuloSearch(self, p_data, p_vectorNum, p_resultNum, p_withMetaData, p_numThreads):
         return _SPTAG.AnnIndex_FakasuloSearch(self, p_data, p_vectorNum, p_resultNum, p_withMetaData, p_numThreads)
 
+    def FakasuloSearchProdCons(self, p_data, p_vectorNum, p_resultNum, p_withMetaData, p_numThreads):
+        return _SPTAG.AnnIndex_FakasuloSearchProdCons(self, p_data, p_vectorNum, p_resultNum, p_withMetaData, p_numThreads)
+
     def ReadyToServe(self):
         return _SPTAG.AnnIndex_ReadyToServe(self)
 

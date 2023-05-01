@@ -119,7 +119,7 @@ bool SanityCheck(std::vector<SPTAG::QueryResult> FakasuloRes, std::vector<SPTAG:
 template <typename T>
 void Search(const std::string folder, T* vec, SPTAG::SizeType n, int k, std::string* truthmeta)
 {
-    int num_threads = 1;
+    int num_threads = 8;
     std::thread threadPool[num_threads];
     std::shared_ptr<SPTAG::VectorIndex> vecIndex;
     BOOST_CHECK(SPTAG::ErrorCode::Success == SPTAG::VectorIndex::LoadIndex(folder, vecIndex));
@@ -134,7 +134,7 @@ void Search(const std::string folder, T* vec, SPTAG::SizeType n, int k, std::str
         int index = i * num_threads / n; 
         SPTAG::QueryResult res(vec, k, false);
         queries[index].push_back(res);
-        // /*
+        /*
         vecIndex->SearchIndex(res);
         SptagRes.push_back(res);
         std::unordered_set<std::string> resmeta;
@@ -146,7 +146,7 @@ void Search(const std::string folder, T* vec, SPTAG::SizeType n, int k, std::str
             std::cout << res.GetResult(j)->Dist << "@(" << res.GetResult(j)->VID << "," << std::string((char*)res.GetMetadata(j).Data(), res.GetMetadata(j).Length()) << ") ";
         }
         std::cout << std::endl;
-        // */
+        */
         
         vec += vecIndex->GetFeatureDim();
     }
@@ -155,7 +155,7 @@ void Search(const std::string folder, T* vec, SPTAG::SizeType n, int k, std::str
     std::cout << "SPTAG time: " << int_ms.count() << std::endl;
     start_sptag_time = std::chrono::high_resolution_clock::now();
     
-    
+    vecIndex->ThreadedSelectHeads(queries, num_threads);
     // Our search
     for(int i=0; i<num_threads; i++){
         threadPool[i] = std::thread(ThreadedSearch, std::ref(vecIndex), std::ref(queries), i);

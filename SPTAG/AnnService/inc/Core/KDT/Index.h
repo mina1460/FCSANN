@@ -165,6 +165,7 @@ namespace SPTAG
             ErrorCode RefineIndex(const std::vector<std::shared_ptr<Helper::DiskIO>>& p_indexStreams, IAbortOperation* p_abort);
             ErrorCode RefineIndex(std::shared_ptr<VectorIndex>& p_newIndex);
 
+            ErrorCode ThreadedSelectHeads(std::vector<std::vector<SPTAG::QueryResult>> &queries, int num_threads) const {};
         private:
             template <typename Q>
             void SearchIndex(COMMON::QueryResultSet<T> &p_query, COMMON::WorkSpace &p_space, bool p_searchDeleted) const;

@@ -22,7 +22,7 @@ datasets = [
 ]
 
 @dataclass
-class Data:
+class Data: 
     '''a representation of the data loaded from the hdf5 file'''
     distances: np.ndarray
     neighbors: np.ndarray
@@ -171,12 +171,12 @@ class ANN:
         print(self.data.test.shape)
         result = []
         no_of_q = 1
-        # temp = self.data.test
+        temp = self.data.test
         for _ in range(5):
             # rand_int = np.random.randint(0, 5, temp.shape)
             # t = np.add(temp, rand_int)
             self.data.test = np.concatenate((self.data.test, self.data.test), axis=0)
-            self.data.neighbors = np.concatenate((self.data.neighbors, self.data.neighbors), axis=0) 
+            self.data.neighbors = np.concatenate((self.data.neighbors, self.data.neighbors), axis=0) #fawzy
         click.secho(f"Test shape: {self.data.test.shape}", fg='bright_blue', bold=True)
         
         # for i in self.data.test:
@@ -192,7 +192,7 @@ class ANN:
         # result = np.array(result[0]).reshape((self.data.test.shape[0], self.n_neighbors))
 
         # To normalize the vector => x / np.linalg.norm(x)
-        result = self.index.FakasuloSearch(self.data.test, self.data.test.shape[0], self.n_neighbors, False, 1)
+        result = self.index.FakasuloSearch(self.data.test, self.data.test.shape[0], self.n_neighbors, False, 8)
         
         query_time_end = time.time()
         result = np.array(result[0]).reshape((self.data.test.shape[0], self.n_neighbors))
@@ -255,7 +255,6 @@ def entry_point(dataset, k_neighbors, batch, in_memory, verbose, algorithm) -> N
     ann.construct_graph(algorithm)
     labels = ann.query(algorithm)
     recall = ann.evaluate(labels)
-
 
 
 if __name__ == '__main__':
