@@ -156,6 +156,8 @@ void Search(const std::string folder, T* vec, SPTAG::SizeType n, int k, std::str
     start_sptag_time = std::chrono::high_resolution_clock::now();
     
     vecIndex->ThreadedSelectHeads(queries, num_threads);
+    std::cout <<"Finished\n";
+    exit(0);
     // Our search
     for(int i=0; i<num_threads; i++){
         threadPool[i] = std::thread(ThreadedSearch, std::ref(vecIndex), std::ref(queries), i);
@@ -244,7 +246,7 @@ template <typename T>
 void Test(SPTAG::IndexAlgoType algo, std::string distCalcMethod)
 {
     
-    SPTAG::SizeType n = 100000, q = 10000;
+    SPTAG::SizeType n = 100000, q = 15000;
     SPTAG::DimensionType m = 100;
     int k = 5;
     std::vector<T> vec;

@@ -612,7 +612,7 @@ namespace SPTAG
         {
             std::cout << "Threaded Select Head: " << queries.size() <<std::endl;
             
-            int num_of_producers = 3;
+            int num_of_producers = 4;
             std::thread producers_threads[num_of_producers];
 
             m_inverted_indexs.resize(num_threads);
@@ -633,14 +633,17 @@ namespace SPTAG
             std::cout << "Threaded Select Head [m_headThreadMap].size(): " << m_headThreadMap.size() <<std::endl;
             readings.setInvertedIndexSize(m_headThreadMap.size());
 
-            int items_count = m_headThreadMap.size();
-            int items_per_thread = items_count / num_of_producers;
+            int items_count = m_headThreadMap.size() / num_of_producers;
+            int items_per_thread = m_headThreadMap.size() / num_of_producers;
             
             for(int i=0; i<num_of_producers; i++){
                 std::cout << "producer thread " << i << " created \n";
                 if(i == num_of_producers-1){
-                    items_count += items_count % num_of_producers;
+                    items_count += m_headThreadMap.size() % num_of_producers;
+                    std::cout << "New Count: " << items_count % num_of_producers << std::endl;
+                    std::cout << "New Count: " << items_count << std::endl;
                 }
+                    std::cout << "offset: " << i*items_per_thread << " items_count: " << items_count << std::endl; 
                     producers_threads[i] = std::thread(&NewProducer<T>, std::ref(m_headThreadMap), std::ref(readings), m_workSpacePool.get(), m_extraSearcher, i*items_per_thread, items_count);
             }
             

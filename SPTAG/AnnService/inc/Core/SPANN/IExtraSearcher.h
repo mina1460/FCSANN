@@ -53,8 +53,10 @@ class ConcurrentQueue {
         std::unique_lock<std::mutex> mlock(mutex_);
         if(consumed_vec[index] >= thread_queue_size[index]) return 0;
 
-        while(queue_vec[index].empty()) 
+        while(queue_vec[index].empty()){
             cond_.wait(mlock);
+            std::cout << "Waiting PopFromMultiQueue Thread: " << index << "\n";
+        } 
         
         item = queue_vec[index].front();
         queue_vec[index].pop();
