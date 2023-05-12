@@ -15,14 +15,16 @@
 #include <atomic>
 
 template <typename T>
-class ConcurrentQueue {
-    public:
-
-    T pop() {
+class ConcurrentQueue
+{
+public:
+    T pop()
+    {
         std::unique_lock<std::mutex> mlock(mutex_);
-        while (queue_.empty()) {
-        // std::cout << "Waitig Pop1\n";
-        cond_.wait(mlock);
+        while (queue_.empty())
+        {
+            // std::cout << "Waitig Pop1\n";
+            cond_.wait(mlock);
         }
         auto val = queue_.front();
         queue_.pop();
@@ -32,13 +34,16 @@ class ConcurrentQueue {
         return val;
     }
 
-    bool pop(T& item) {
+    bool pop(T &item)
+    {
         std::unique_lock<std::mutex> mlock(mutex_);
-        if(consumed >= inverted_index_size) {
+        if (consumed >= inverted_index_size)
+        {
             // std::cout << "Consumed: " << consumed << " Inverted Index Size: " << inverted_index_size << "\n";
             return 0;
         }
-        while (queue_.empty()) {
+        while (queue_.empty())
+        {
             cond_.wait(mlock);
         }
         item = queue_.front();
@@ -49,15 +54,17 @@ class ConcurrentQueue {
         return 1;
     }
 
-    bool PopFromMultiQueue(T& item, int index){
+    bool PopFromMultiQueue(T &item, int index)
+    {
         std::unique_lock<std::mutex> mlock(mutex_);
-        if(consumed_vec[index] >= thread_queue_size[index]) return 0;
+        if (consumed_vec[index] >= thread_queue_size[index])
+            return 0;
 
-        while(queue_vec[index].empty()){
+        while (queue_vec[index].empty())
+        {
             cond_.wait(mlock);
-            std::cout << "Waiting PopFromMultiQueue Thread: " << index << "\n";
-        } 
-        
+        }
+
         item = queue_vec[index].front();
         queue_vec[index].pop();
         consumed_vec[index]++;
@@ -71,8 +78,8 @@ class ConcurrentQueue {
     //         std::cout << "Error: Index out of range\n";
     //         return;
     //     }
-        
-    //     if(!PushChecker()) {            
+
+    //     if(!PushChecker()) {
     //         return;
     //     }
 
@@ -87,84 +94,97 @@ class ConcurrentQueue {
     //     cond_.notify_one();
     // }
 
-    void pushInMultiQueue(const T& item, std::vector<int> &indexes){
-        
-        if(!PushChecker()) {            
+    void pushInMultiQueue(const T &item, std::vector<int> &indexes)
+    {
+
+        if (!PushChecker())
+        {
             return;
         }
 
         std::unique_lock<std::mutex> mlock(mutex_);
-        for(auto index : indexes)
+        for (auto index : indexes)
             queue_vec[index].push(item);
-        
+
         mlock.unlock();
         cond_.notify_one();
     }
 
-    void push(const T& item) {
+    void push(const T &item)
+    {
         std::unique_lock<std::mutex> mlock(mutex_);
         // std::cout << "Pushing Fun\n";
-        if(!PushChecker()) {            
+        if (!PushChecker())
+        {
             return;
         }
-        
+
         char *temp;
         temp = new char[item.listInfo.listTotalBytes];
         memcpy(temp, item.fullData, item.listInfo.listTotalBytes);
         T newItem = item;
         newItem.fullData = temp;
         queue_.push(newItem);
-    
-        
+
         // produced+=batch_read;
         produced++;
         mlock.unlock();
         cond_.notify_one();
     }
 
-    bool PushChecker() {
+    bool PushChecker()
+    {
         // std::unique_lock<std::mutex> mlock(mutex_);
-        if(produced >= inverted_index_size) {
+        if (produced >= inverted_index_size)
+        {
             return 0;
         }
         return 1;
     }
 
-    int getProudced() {
+    int getProudced()
+    {
         return produced;
     }
 
-    void IncrementProduced() {
+    void IncrementProduced()
+    {
         produced++;
     }
 
-    void setBatchRead(int batch_read) {
+    void setBatchRead(int batch_read)
+    {
         this->batch_read = batch_read;
     }
 
-    size_t size() {
+    size_t size()
+    {
         return produced;
     }
 
-    void incrementThreadQueueSize(int index) {
+    void incrementThreadQueueSize(int index)
+    {
         thread_queue_size[index]++;
     }
 
-    void initThreads(int size) {
+    void initThreads(int size)
+    {
         queue_vec.resize(size);
         consumed_vec.resize(size);
         thread_queue_size.resize(size);
     }
 
-    void setInvertedIndexSize(int size) {
+    void setInvertedIndexSize(int size)
+    {
         inverted_index_size = size;
     }
 
-    ConcurrentQueue()=default;
+    ConcurrentQueue() = default;
     // ConcurrentQueue(const ConcurrentQueue&) = delete;            // disable copying
-    ConcurrentQueue& operator=(const ConcurrentQueue&) = delete; // disable assignment
-    ConcurrentQueue(int size) : inverted_index_size(size) {} 
-    ConcurrentQueue(int invertedIndexSize, int queueSize){
+    ConcurrentQueue &operator=(const ConcurrentQueue &) = delete; // disable assignment
+    ConcurrentQueue(int size) : inverted_index_size(size) {}
+    ConcurrentQueue(int invertedIndexSize, int queueSize)
+    {
         inverted_index_size = invertedIndexSize;
         queue_vec.resize(queueSize);
 
@@ -173,9 +193,10 @@ class ConcurrentQueue {
         consumed_vec.resize(queueSize);
         thread_queue_size.resize(queueSize);
     }
-    private:
+
+private:
     std::queue<T> queue_;
-    
+
     std::vector<std::queue<T>> queue_vec;
     // std::vector<int> produced_vec;
     std::vector<int> consumed_vec;
@@ -185,17 +206,19 @@ class ConcurrentQueue {
     std::condition_variable cond_;
     // const static unsigned int BUFFER_SIZE = 100;
     int inverted_index_size;
-    int produced = 0;
+    std::atomic<int> produced{0};
     int consumed = 0;
     int batch_read = 0;
 };
-namespace SPTAG {
-    namespace SPANN {
+namespace SPTAG
+{
+    namespace SPANN
+    {
         struct QueueData;
         struct ListInfo
         {
             std::size_t listTotalBytes = 0;
-            
+
             int listEleCount = 0;
 
             std::uint16_t listPageCount = 0;
@@ -204,23 +227,23 @@ namespace SPTAG {
 
             std::uint16_t pageOffset = 0;
         };
-        
+
         struct SearchStats
         {
             SearchStats()
                 : m_check(0),
-                m_exCheck(0),
-                m_totalListElementsCount(0),
-                m_diskIOCount(0),
-                m_diskAccessCount(0),
-                m_totalSearchLatency(0),
-                m_totalLatency(0),
-                m_exLatency(0),
-                m_asyncLatency0(0),
-                m_asyncLatency1(0),
-                m_asyncLatency2(0),
-                m_queueLatency(0),
-                m_sleepLatency(0)
+                  m_exCheck(0),
+                  m_totalListElementsCount(0),
+                  m_diskIOCount(0),
+                  m_diskAccessCount(0),
+                  m_totalSearchLatency(0),
+                  m_totalLatency(0),
+                  m_exLatency(0),
+                  m_asyncLatency0(0),
+                  m_asyncLatency1(0),
+                  m_asyncLatency2(0),
+                  m_queueLatency(0),
+                  m_sleepLatency(0)
             {
             }
 
@@ -255,7 +278,7 @@ namespace SPTAG {
             int m_threadID;
         };
 
-        template<typename T>
+        template <typename T>
         class PageBuffer
         {
         public:
@@ -269,11 +292,12 @@ namespace SPTAG {
                 if (m_pageBufferSize < p_size)
                 {
                     m_pageBufferSize = p_size;
-                    m_pageBuffer.reset(static_cast<T*>(PAGE_ALLOC(sizeof(T) * m_pageBufferSize)), [=](T* ptr) { PAGE_FREE(ptr); });
+                    m_pageBuffer.reset(static_cast<T *>(PAGE_ALLOC(sizeof(T) * m_pageBufferSize)), [=](T *ptr)
+                                       { PAGE_FREE(ptr); });
                 }
             }
 
-            T* GetBuffer()
+            T *GetBuffer()
             {
                 return m_pageBuffer.get();
             }
@@ -295,27 +319,32 @@ namespace SPTAG {
 
             ~ExtraWorkSpace() {}
 
-            ExtraWorkSpace(ExtraWorkSpace& other) {
+            ExtraWorkSpace(ExtraWorkSpace &other)
+            {
                 Initialize(other.m_deduper.MaxCheck(), other.m_deduper.HashTableExponent(), (int)other.m_pageBuffers.size(), (int)(other.m_pageBuffers[0].GetPageSize()), other.m_enableDataCompression);
                 m_spaceID = g_spaceCount++;
             }
 
-            void Initialize(int p_maxCheck, int p_hashExp, int p_internalResultNum, int p_maxPages, bool enableDataCompression) {
+            void Initialize(int p_maxCheck, int p_hashExp, int p_internalResultNum, int p_maxPages, bool enableDataCompression)
+            {
                 m_postingIDs.reserve(p_internalResultNum);
                 m_deduper.Init(p_maxCheck, p_hashExp);
                 m_processIocp.reset(p_internalResultNum);
                 m_pageBuffers.resize(p_internalResultNum);
-                for (int pi = 0; pi < p_internalResultNum; pi++) {
+                for (int pi = 0; pi < p_internalResultNum; pi++)
+                {
                     m_pageBuffers[pi].ReservePageBuffer(p_maxPages);
                 }
                 m_diskRequests.resize(p_internalResultNum);
                 m_enableDataCompression = enableDataCompression;
-                if (enableDataCompression) {
+                if (enableDataCompression)
+                {
                     m_decompressBuffer.ReservePageBuffer(p_maxPages);
                 }
             }
 
-            void Initialize(va_list& arg) {
+            void Initialize(va_list &arg)
+            {
                 int maxCheck = va_arg(arg, int);
                 int hashExp = va_arg(arg, int);
                 int internalResultNum = va_arg(arg, int);
@@ -344,7 +373,8 @@ namespace SPTAG {
             static std::atomic_int g_spaceCount;
         };
 
-        struct QueueData {
+        struct QueueData
+        {
             ListInfo listInfo;
             int clusterID;
             std::shared_ptr<char> fullData;
@@ -361,30 +391,29 @@ namespace SPTAG {
             {
             }
 
-            virtual bool LoadIndex(Options& p_options) = 0;
+            virtual bool LoadIndex(Options &p_options) = 0;
 
-            virtual void SearchIndex(ExtraWorkSpace* p_exWorkSpace,
-                QueryResult& p_queryResults,
-                std::shared_ptr<VectorIndex> p_index,
-                SearchStats* p_stats,
-                std::set<int>* truth = nullptr,
-                std::map<int, std::set<int>>* found = nullptr) = 0;
+            virtual void SearchIndex(ExtraWorkSpace *p_exWorkSpace,
+                                     QueryResult &p_queryResults,
+                                     std::shared_ptr<VectorIndex> p_index,
+                                     SearchStats *p_stats,
+                                     std::set<int> *truth = nullptr,
+                                     std::map<int, std::set<int>> *found = nullptr) = 0;
 
-            virtual void SearchInvertedIndex(ExtraWorkSpace* p_exWorkSpace, std::vector<QueryResult*> &queries, 
-                        SearchStats* p_stats, std::shared_ptr<VectorIndex> p_index, QueueData queueData) {};
+            virtual void SearchInvertedIndex(ExtraWorkSpace *p_exWorkSpace, std::vector<QueryResult *> &queries,
+                                             SearchStats *p_stats, std::shared_ptr<VectorIndex> p_index, QueueData queueData){};
 
-            virtual void LoadFromDisk(std::shared_ptr<ExtraWorkSpace> p_exWorkSpace, std::vector<int> p_posting_ids, 
-                                        ConcurrentQueue<QueueData>& requests_data, std::map <int, std::vector<int>>& centroidThreadMap ) {};
+            virtual void LoadFromDisk(std::shared_ptr<ExtraWorkSpace> p_exWorkSpace, std::vector<int> p_posting_ids,
+                                      ConcurrentQueue<QueueData> &requests_data, std::map<int, std::vector<int>> &centroidThreadMap){};
 
-            virtual bool BuildIndex(std::shared_ptr<Helper::VectorSetReader>& p_reader, 
-                std::shared_ptr<VectorIndex> p_index, 
-                Options& p_opt) = 0;
+            virtual bool BuildIndex(std::shared_ptr<Helper::VectorSetReader> &p_reader,
+                                    std::shared_ptr<VectorIndex> p_index,
+                                    Options &p_opt) = 0;
 
             virtual bool CheckValidPosting(SizeType postingID) = 0;
             virtual ListInfo GetListInfo(SizeType postingID){};
         };
 
-        
     } // SPANN
 } // SPTAG
 

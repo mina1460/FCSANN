@@ -4269,6 +4269,7 @@ SWIGINTERN PyObject *_wrap_AnnIndex_FakasuloSearchProdCons(PyObject *SWIGUNUSEDP
   int arg4 ;
   bool arg5 ;
   int arg6 ;
+  int arg7 ;
   void *argp1 = 0 ;
   int res1 = 0 ;
   std::shared_ptr< AnnIndex > tempshared1 ;
@@ -4282,10 +4283,12 @@ SWIGINTERN PyObject *_wrap_AnnIndex_FakasuloSearchProdCons(PyObject *SWIGUNUSEDP
   int ecode5 = 0 ;
   int val6 ;
   int ecode6 = 0 ;
-  PyObject *swig_obj[6] ;
+  int val7 ;
+  int ecode7 = 0 ;
+  PyObject *swig_obj[7] ;
   std::vector< QueryResult > result;
   
-  if (!SWIG_Python_UnpackTuple(args, "AnnIndex_FakasuloSearchProdCons", 6, 6, swig_obj)) SWIG_fail;
+  if (!SWIG_Python_UnpackTuple(args, "AnnIndex_FakasuloSearchProdCons", 7, 7, swig_obj)) SWIG_fail;
   {
     int newmem = 0;
     res1 = SWIG_ConvertPtrAndOwn(swig_obj[0], &argp1, SWIGTYPE_p_std__shared_ptrT_AnnIndex_t, 0 |  0 , &newmem);
@@ -4350,7 +4353,12 @@ SWIGINTERN PyObject *_wrap_AnnIndex_FakasuloSearchProdCons(PyObject *SWIGUNUSEDP
     SWIG_exception_fail(SWIG_ArgError(ecode6), "in method '" "AnnIndex_FakasuloSearchProdCons" "', argument " "6"" of type '" "int""'");
   } 
   arg6 = static_cast< int >(val6);
-  result = (arg1)->FakasuloSearchProdCons(arg2,arg3,arg4,arg5,arg6);
+  ecode7 = SWIG_AsVal_int(swig_obj[6], &val7);
+  if (!SWIG_IsOK(ecode7)) {
+    SWIG_exception_fail(SWIG_ArgError(ecode7), "in method '" "AnnIndex_FakasuloSearchProdCons" "', argument " "7"" of type '" "int""'");
+  } 
+  arg7 = static_cast< int >(val7);
+  result = (arg1)->FakasuloSearchProdCons(arg2,arg3,arg4,arg5,arg6,arg7);
   
   {
     resultobj = PyTuple_New(3);
