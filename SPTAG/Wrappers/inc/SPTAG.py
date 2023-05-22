@@ -103,6 +103,12 @@ class AnnIndex(object):
     def BatchSearch(self, p_data, p_vectorNum, p_resultNum, p_withMetaData):
         return _SPTAG.AnnIndex_BatchSearch(self, p_data, p_vectorNum, p_resultNum, p_withMetaData)
 
+    def FakasuloSearch(self, p_data, p_vectorNum, p_resultNum, p_withMetaData, p_numThreads):
+        return _SPTAG.AnnIndex_FakasuloSearch(self, p_data, p_vectorNum, p_resultNum, p_withMetaData, p_numThreads)
+
+    def FakasuloSearchProdCons(self, p_data, p_vectorNum, p_resultNum, p_withMetaData, C_num_threads, P_num_threads):
+        return _SPTAG.AnnIndex_FakasuloSearchProdCons(self, p_data, p_vectorNum, p_resultNum, p_withMetaData, C_num_threads, P_num_threads)
+
     def ReadyToServe(self):
         return _SPTAG.AnnIndex_ReadyToServe(self)
 
@@ -131,6 +137,9 @@ class AnnIndex(object):
     @staticmethod
     def Merge(p_indexFilePath1, p_indexFilePath2):
         return _SPTAG.AnnIndex_Merge(p_indexFilePath1, p_indexFilePath2)
+
+    def Test(self):
+        return _SPTAG.AnnIndex_Test(self)
 
 # Register AnnIndex in _SPTAG:
 _SPTAG.AnnIndex_swigregister(AnnIndex)

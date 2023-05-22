@@ -32,6 +32,42 @@
     }
 %}
 
+%typemap(out) std::vector<QueryResult>
+%{
+    {
+        $result = PyTuple_New(3);
+        int k_neighbours = $1[0].GetResultNum();
+        int resNum = $1.size();
+        auto dstVecIDs = PyList_New(k_neighbours*resNum);
+        auto dstVecDists = PyList_New(k_neighbours*resNum);
+        auto dstMetadata = PyList_New(k_neighbours*resNum);
+        int i = 0;
+        for (const auto& res : $1)
+        {
+            for(int j=0; j<k_neighbours; j++)
+            {
+                PyList_SetItem(dstVecIDs, i, PyInt_FromLong(res.GetResult(j)->VID));
+                PyList_SetItem(dstVecDists, i, PyFloat_FromDouble(res.GetResult(j)->Dist));
+                i++;
+            }
+        }
+    
+        // if (*($1.get())->WithMeta()) 
+        // {
+        //     for (i = 0; i < resNum; ++i)
+        //     {
+        //         const auto& metadata = $1->GetMetadata(i);
+        //         PyList_SetItem(dstMetadata, i, PyBytes_FromStringAndSize(reinterpret_cast<const char*>(metadata.Data()),
+        //                                                                  metadata.Length()));
+        //     }
+        // }
+
+        PyTuple_SetItem($result, 0, dstVecIDs);
+        PyTuple_SetItem($result, 1, dstVecDists);
+        PyTuple_SetItem($result, 2, dstMetadata);
+    }
+%}
+
 %typemap(out) std::shared_ptr<RemoteSearchResult>
 %{
     {

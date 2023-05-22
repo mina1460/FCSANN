@@ -34,26 +34,29 @@ namespace SPTAG
 
     namespace KDT
     {
-        template<typename T>
+        template <typename T>
         class Index : public VectorIndex
         {
-            class RebuildJob : public Helper::ThreadPool::Job {
+            class RebuildJob : public Helper::ThreadPool::Job
+            {
             public:
-                RebuildJob(COMMON::Dataset<T>* p_data, COMMON::KDTree* p_tree, COMMON::RelativeNeighborhoodGraph* p_graph) : m_data(p_data), m_tree(p_tree), m_graph(p_graph) {}
-                void exec(IAbortOperation* p_abort) {
+                RebuildJob(COMMON::Dataset<T> *p_data, COMMON::KDTree *p_tree, COMMON::RelativeNeighborhoodGraph *p_graph) : m_data(p_data), m_tree(p_tree), m_graph(p_graph) {}
+                void exec(IAbortOperation *p_abort)
+                {
                     m_tree->Rebuild<T>(*m_data, p_abort);
                 }
+
             private:
-                COMMON::Dataset<T>* m_data;
-                COMMON::KDTree* m_tree;
-                COMMON::RelativeNeighborhoodGraph* m_graph;
+                COMMON::Dataset<T> *m_data;
+                COMMON::KDTree *m_tree;
+                COMMON::RelativeNeighborhoodGraph *m_graph;
             };
 
         private:
             // data points
             COMMON::Dataset<T> m_pSamples;
 
-            // KDT structures. 
+            // KDT structures.
             COMMON::KDTree m_pTrees;
 
             // Graph structure
@@ -69,15 +72,15 @@ namespace SPTAG
             std::mutex m_dataAddLock; // protect data and graph
             std::shared_timed_mutex m_dataDeleteLock;
             COMMON::Labelset m_deletedID;
-            
+
             std::unique_ptr<COMMON::WorkSpacePool<COMMON::WorkSpace>> m_workSpacePool;
             Helper::ThreadPool m_threadPool;
             int m_iNumberOfThreads;
 
             DistCalcMethod m_iDistCalcMethod;
-            std::function<float(const T*, const T*, DimensionType)> m_fComputeDistance;
+            std::function<float(const T *, const T *, DimensionType)> m_fComputeDistance;
             int m_iBaseSquare;
- 
+
             int m_iMaxCheck;
             int m_iThresholdOfNumberOfContinuousNoBetterPropagation;
             int m_iNumberOfInitialDynamicPivots;
@@ -88,13 +91,13 @@ namespace SPTAG
             Index()
             {
 #define DefineKDTParameter(VarName, VarType, DefaultValue, RepresentStr) \
-                VarName = DefaultValue; \
+    VarName = DefaultValue;
 
 #include "inc/Core/KDT/ParameterDefinitionList.h"
 #undef DefineKDTParameter
 
                 m_pSamples.SetName("Vector");
-                m_fComputeDistance = std::function<float(const T*, const T*, DimensionType)>(COMMON::DistanceCalcSelector<T>(m_iDistCalcMethod));
+                m_fComputeDistance = std::function<float(const T *, const T *, DimensionType)>(COMMON::DistanceCalcSelector<T>(m_iDistCalcMethod));
                 m_iBaseSquare = (m_iDistCalcMethod == DistCalcMethod::Cosine) ? COMMON::Utils::GetBase<T>() * COMMON::Utils::GetBase<T>() : 1;
             }
 
@@ -103,24 +106,26 @@ namespace SPTAG
             inline SizeType GetNumSamples() const { return m_pSamples.R(); }
             inline SizeType GetNumDeleted() const { return (SizeType)m_deletedID.Count(); }
             inline DimensionType GetFeatureDim() const { return m_pSamples.C(); }
-            
+
             inline int GetCurrMaxCheck() const { return m_iMaxCheck; }
             inline int GetNumThreads() const { return m_iNumberOfThreads; }
             inline DistCalcMethod GetDistCalcMethod() const { return m_iDistCalcMethod; }
             inline IndexAlgoType GetIndexAlgoType() const { return IndexAlgoType::KDT; }
             inline VectorValueType GetVectorValueType() const { return GetEnumValueType<T>(); }
             void SetQuantizer(std::shared_ptr<SPTAG::COMMON::IQuantizer> quantizer);
-            
-            inline float AccurateDistance(const void* pX, const void* pY) const {
-                if (m_iDistCalcMethod == DistCalcMethod::L2) return m_fComputeDistance((const T*)pX, (const T*)pY, m_pSamples.C());
 
-                float xy = m_iBaseSquare - m_fComputeDistance((const T*)pX, (const T*)pY, m_pSamples.C());
-                float xx = m_iBaseSquare - m_fComputeDistance((const T*)pX, (const T*)pX, m_pSamples.C());
-                float yy = m_iBaseSquare - m_fComputeDistance((const T*)pY, (const T*)pY, m_pSamples.C());
+            inline float AccurateDistance(const void *pX, const void *pY) const
+            {
+                if (m_iDistCalcMethod == DistCalcMethod::L2)
+                    return m_fComputeDistance((const T *)pX, (const T *)pY, m_pSamples.C());
+
+                float xy = m_iBaseSquare - m_fComputeDistance((const T *)pX, (const T *)pY, m_pSamples.C());
+                float xx = m_iBaseSquare - m_fComputeDistance((const T *)pX, (const T *)pX, m_pSamples.C());
+                float yy = m_iBaseSquare - m_fComputeDistance((const T *)pY, (const T *)pY, m_pSamples.C());
                 return 1.0f - xy / (sqrt(xx) * sqrt(yy));
             }
-            inline float ComputeDistance(const void* pX, const void* pY) const { return m_fComputeDistance((const T*)pX, (const T*)pY, m_pSamples.C()); }
-            inline const void* GetSample(const SizeType idx) const { return (void*)m_pSamples[idx]; }
+            inline float ComputeDistance(const void *pX, const void *pY) const { return m_fComputeDistance((const T *)pX, (const T *)pY, m_pSamples.C()); }
+            inline const void *GetSample(const SizeType idx) const { return (void *)m_pSamples[idx]; }
             inline bool ContainSample(const SizeType idx) const { return idx >= 0 && idx < m_deletedID.R() && !m_deletedID.Contains(idx); }
             inline bool NeedRefine() const { return m_deletedID.Count() > (size_t)(GetNumSamples() * m_fDeletePercentageForRefine); }
             std::shared_ptr<std::vector<std::uint64_t>> BufferSize() const
@@ -144,26 +149,28 @@ namespace SPTAG
             }
 
             ErrorCode SaveConfig(std::shared_ptr<Helper::DiskIO> p_configout);
-            ErrorCode SaveIndexData(const std::vector<std::shared_ptr<Helper::DiskIO>>& p_indexStreams);
+            ErrorCode SaveIndexData(const std::vector<std::shared_ptr<Helper::DiskIO>> &p_indexStreams);
 
-            ErrorCode LoadConfig(Helper::IniReader& p_reader);
-            ErrorCode LoadIndexData(const std::vector<std::shared_ptr<Helper::DiskIO>>& p_indexStreams);
-            ErrorCode LoadIndexDataFromMemory(const std::vector<ByteArray>& p_indexBlobs);
+            ErrorCode LoadConfig(Helper::IniReader &p_reader);
+            ErrorCode LoadIndexData(const std::vector<std::shared_ptr<Helper::DiskIO>> &p_indexStreams);
+            ErrorCode LoadIndexDataFromMemory(const std::vector<ByteArray> &p_indexBlobs);
 
-            ErrorCode BuildIndex(const void* p_data, SizeType p_vectorNum, DimensionType p_dimension, bool p_normalized = false, bool p_shareOwnership = false);
+            ErrorCode BuildIndex(const void *p_data, SizeType p_vectorNum, DimensionType p_dimension, bool p_normalized = false, bool p_shareOwnership = false);
             ErrorCode SearchIndex(QueryResult &p_query, bool p_searchDeleted = false) const;
             ErrorCode RefineSearchIndex(QueryResult &p_query, bool p_searchDeleted = false) const;
             ErrorCode SearchTree(QueryResult &p_query) const;
-            ErrorCode AddIndex(const void* p_data, SizeType p_vectorNum, DimensionType p_dimension, std::shared_ptr<MetadataSet> p_metadataSet, bool p_withMetaIndex = false, bool p_normalized = false);
-            ErrorCode DeleteIndex(const void* p_vectors, SizeType p_vectorNum);
-            ErrorCode DeleteIndex(const SizeType& p_id);
+            ErrorCode AddIndex(const void *p_data, SizeType p_vectorNum, DimensionType p_dimension, std::shared_ptr<MetadataSet> p_metadataSet, bool p_withMetaIndex = false, bool p_normalized = false);
+            ErrorCode DeleteIndex(const void *p_vectors, SizeType p_vectorNum);
+            ErrorCode DeleteIndex(const SizeType &p_id);
 
-            ErrorCode SetParameter(const char* p_param, const char* p_value, const char* p_section = nullptr);
-            std::string GetParameter(const char* p_param, const char* p_section = nullptr) const;
+            ErrorCode SetParameter(const char *p_param, const char *p_value, const char *p_section = nullptr);
+            std::string GetParameter(const char *p_param, const char *p_section = nullptr) const;
             ErrorCode UpdateIndex();
 
-            ErrorCode RefineIndex(const std::vector<std::shared_ptr<Helper::DiskIO>>& p_indexStreams, IAbortOperation* p_abort);
-            ErrorCode RefineIndex(std::shared_ptr<VectorIndex>& p_newIndex);
+            ErrorCode RefineIndex(const std::vector<std::shared_ptr<Helper::DiskIO>> &p_indexStreams, IAbortOperation *p_abort);
+            ErrorCode RefineIndex(std::shared_ptr<VectorIndex> &p_newIndex);
+
+            ErrorCode ThreadedSelectHeads(std::vector<std::vector<SPTAG::QueryResult>> &queries, int C_num_threads, int P_num_threads) const {};
 
         private:
             template <typename Q>

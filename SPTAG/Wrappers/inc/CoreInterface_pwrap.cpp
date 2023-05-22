@@ -4131,6 +4131,274 @@ fail:
 }
 
 
+SWIGINTERN PyObject *_wrap_AnnIndex_FakasuloSearch(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  AnnIndex *arg1 = (AnnIndex *) 0 ;
+  ByteArray arg2 ;
+  int arg3 ;
+  int arg4 ;
+  bool arg5 ;
+  int arg6 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  std::shared_ptr< AnnIndex > tempshared1 ;
+  std::shared_ptr< AnnIndex > *smartarg1 = 0 ;
+  PyBufferHolder bufferHolder2 ;
+  int val3 ;
+  int ecode3 = 0 ;
+  int val4 ;
+  int ecode4 = 0 ;
+  bool val5 ;
+  int ecode5 = 0 ;
+  int val6 ;
+  int ecode6 = 0 ;
+  PyObject *swig_obj[6] ;
+  std::vector< QueryResult > result;
+  
+  if (!SWIG_Python_UnpackTuple(args, "AnnIndex_FakasuloSearch", 6, 6, swig_obj)) SWIG_fail;
+  {
+    int newmem = 0;
+    res1 = SWIG_ConvertPtrAndOwn(swig_obj[0], &argp1, SWIGTYPE_p_std__shared_ptrT_AnnIndex_t, 0 |  0 , &newmem);
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "AnnIndex_FakasuloSearch" "', argument " "1"" of type '" "AnnIndex *""'");
+    }
+    if (newmem & SWIG_CAST_NEW_MEMORY) {
+      tempshared1 = *reinterpret_cast< std::shared_ptr<  AnnIndex > * >(argp1);
+      delete reinterpret_cast< std::shared_ptr<  AnnIndex > * >(argp1);
+      arg1 = const_cast< AnnIndex * >(tempshared1.get());
+    } else {
+      smartarg1 = reinterpret_cast< std::shared_ptr<  AnnIndex > * >(argp1);
+      arg1 = const_cast< AnnIndex * >((smartarg1 ? smartarg1->get() : 0));
+    }
+  }
+  
+  if (PyBytes_Check(swig_obj[1]))
+  {
+    arg2 = SPTAG::ByteArray((std::uint8_t*)PyBytes_AsString(swig_obj[1]), PyBytes_Size(swig_obj[1]), false);
+  }
+  else if (PyObject_CheckBuffer(swig_obj[1]))
+  {
+    if (PyObject_GetBuffer(swig_obj[1], &bufferHolder2.buff, PyBUF_SIMPLE | PyBUF_C_CONTIGUOUS) == -1)
+    {
+      PyErr_SetString(PyExc_ValueError, "Failed get buffer.");
+      return NULL;
+    }
+    
+    bufferHolder2.shouldRelease = true;
+    arg2 = SPTAG::ByteArray((std::uint8_t*)bufferHolder2.buff.buf, bufferHolder2.buff.len, false);
+  }
+#if (PY_VERSION_HEX >= 0x03030000)
+  else if (PyUnicode_Check(swig_obj[1]))
+  {
+    arg2 = SPTAG::ByteArray((std::uint8_t*)PyUnicode_DATA(swig_obj[1]), PyUnicode_GET_LENGTH(swig_obj[1]), false);
+  }
+#endif
+  
+  if (nullptr == (&arg2)->Data())
+  {
+    PyErr_SetString(PyExc_ValueError, "Expected Bytes, Data Structure with Buffer Protocol, or Unicode String after Python 3.3 .");
+    return NULL;
+  }
+  
+  ecode3 = SWIG_AsVal_int(swig_obj[2], &val3);
+  if (!SWIG_IsOK(ecode3)) {
+    SWIG_exception_fail(SWIG_ArgError(ecode3), "in method '" "AnnIndex_FakasuloSearch" "', argument " "3"" of type '" "int""'");
+  } 
+  arg3 = static_cast< int >(val3);
+  ecode4 = SWIG_AsVal_int(swig_obj[3], &val4);
+  if (!SWIG_IsOK(ecode4)) {
+    SWIG_exception_fail(SWIG_ArgError(ecode4), "in method '" "AnnIndex_FakasuloSearch" "', argument " "4"" of type '" "int""'");
+  } 
+  arg4 = static_cast< int >(val4);
+  ecode5 = SWIG_AsVal_bool(swig_obj[4], &val5);
+  if (!SWIG_IsOK(ecode5)) {
+    SWIG_exception_fail(SWIG_ArgError(ecode5), "in method '" "AnnIndex_FakasuloSearch" "', argument " "5"" of type '" "bool""'");
+  } 
+  arg5 = static_cast< bool >(val5);
+  ecode6 = SWIG_AsVal_int(swig_obj[5], &val6);
+  if (!SWIG_IsOK(ecode6)) {
+    SWIG_exception_fail(SWIG_ArgError(ecode6), "in method '" "AnnIndex_FakasuloSearch" "', argument " "6"" of type '" "int""'");
+  } 
+  arg6 = static_cast< int >(val6);
+  result = (arg1)->FakasuloSearch(arg2,arg3,arg4,arg5,arg6);
+  
+  {
+    resultobj = PyTuple_New(3);
+    int k_neighbours = result[0].GetResultNum();
+    int resNum = (&result)->size();
+    auto dstVecIDs = PyList_New(k_neighbours*resNum);
+    auto dstVecDists = PyList_New(k_neighbours*resNum);
+    auto dstMetadata = PyList_New(k_neighbours*resNum);
+    int i = 0;
+    for (const auto& res : result)
+    {
+      for(int j=0; j<k_neighbours; j++)
+      {
+        PyList_SetItem(dstVecIDs, i, PyInt_FromLong(res.GetResult(j)->VID));
+        PyList_SetItem(dstVecDists, i, PyFloat_FromDouble(res.GetResult(j)->Dist));
+        i++;
+      }
+    }
+    
+    // if (*((&result)->get())->WithMeta()) 
+    // {
+    //     for (i = 0; i < resNum; ++i)
+    //     {
+    //         const auto& metadata = result->GetMetadata(i);
+    //         PyList_SetItem(dstMetadata, i, PyBytes_FromStringAndSize(reinterpret_cast<const char*>(metadata.Data()),
+    //                                                                  metadata.Length()));
+    //     }
+    // }
+    
+    PyTuple_SetItem(resultobj, 0, dstVecIDs);
+    PyTuple_SetItem(resultobj, 1, dstVecDists);
+    PyTuple_SetItem(resultobj, 2, dstMetadata);
+  }
+  
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *_wrap_AnnIndex_FakasuloSearchProdCons(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  AnnIndex *arg1 = (AnnIndex *) 0 ;
+  ByteArray arg2 ;
+  int arg3 ;
+  int arg4 ;
+  bool arg5 ;
+  int arg6 ;
+  int arg7 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  std::shared_ptr< AnnIndex > tempshared1 ;
+  std::shared_ptr< AnnIndex > *smartarg1 = 0 ;
+  PyBufferHolder bufferHolder2 ;
+  int val3 ;
+  int ecode3 = 0 ;
+  int val4 ;
+  int ecode4 = 0 ;
+  bool val5 ;
+  int ecode5 = 0 ;
+  int val6 ;
+  int ecode6 = 0 ;
+  int val7 ;
+  int ecode7 = 0 ;
+  PyObject *swig_obj[7] ;
+  std::vector< QueryResult > result;
+  
+  if (!SWIG_Python_UnpackTuple(args, "AnnIndex_FakasuloSearchProdCons", 7, 7, swig_obj)) SWIG_fail;
+  {
+    int newmem = 0;
+    res1 = SWIG_ConvertPtrAndOwn(swig_obj[0], &argp1, SWIGTYPE_p_std__shared_ptrT_AnnIndex_t, 0 |  0 , &newmem);
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "AnnIndex_FakasuloSearchProdCons" "', argument " "1"" of type '" "AnnIndex *""'");
+    }
+    if (newmem & SWIG_CAST_NEW_MEMORY) {
+      tempshared1 = *reinterpret_cast< std::shared_ptr<  AnnIndex > * >(argp1);
+      delete reinterpret_cast< std::shared_ptr<  AnnIndex > * >(argp1);
+      arg1 = const_cast< AnnIndex * >(tempshared1.get());
+    } else {
+      smartarg1 = reinterpret_cast< std::shared_ptr<  AnnIndex > * >(argp1);
+      arg1 = const_cast< AnnIndex * >((smartarg1 ? smartarg1->get() : 0));
+    }
+  }
+  
+  if (PyBytes_Check(swig_obj[1]))
+  {
+    arg2 = SPTAG::ByteArray((std::uint8_t*)PyBytes_AsString(swig_obj[1]), PyBytes_Size(swig_obj[1]), false);
+  }
+  else if (PyObject_CheckBuffer(swig_obj[1]))
+  {
+    if (PyObject_GetBuffer(swig_obj[1], &bufferHolder2.buff, PyBUF_SIMPLE | PyBUF_C_CONTIGUOUS) == -1)
+    {
+      PyErr_SetString(PyExc_ValueError, "Failed get buffer.");
+      return NULL;
+    }
+    
+    bufferHolder2.shouldRelease = true;
+    arg2 = SPTAG::ByteArray((std::uint8_t*)bufferHolder2.buff.buf, bufferHolder2.buff.len, false);
+  }
+#if (PY_VERSION_HEX >= 0x03030000)
+  else if (PyUnicode_Check(swig_obj[1]))
+  {
+    arg2 = SPTAG::ByteArray((std::uint8_t*)PyUnicode_DATA(swig_obj[1]), PyUnicode_GET_LENGTH(swig_obj[1]), false);
+  }
+#endif
+  
+  if (nullptr == (&arg2)->Data())
+  {
+    PyErr_SetString(PyExc_ValueError, "Expected Bytes, Data Structure with Buffer Protocol, or Unicode String after Python 3.3 .");
+    return NULL;
+  }
+  
+  ecode3 = SWIG_AsVal_int(swig_obj[2], &val3);
+  if (!SWIG_IsOK(ecode3)) {
+    SWIG_exception_fail(SWIG_ArgError(ecode3), "in method '" "AnnIndex_FakasuloSearchProdCons" "', argument " "3"" of type '" "int""'");
+  } 
+  arg3 = static_cast< int >(val3);
+  ecode4 = SWIG_AsVal_int(swig_obj[3], &val4);
+  if (!SWIG_IsOK(ecode4)) {
+    SWIG_exception_fail(SWIG_ArgError(ecode4), "in method '" "AnnIndex_FakasuloSearchProdCons" "', argument " "4"" of type '" "int""'");
+  } 
+  arg4 = static_cast< int >(val4);
+  ecode5 = SWIG_AsVal_bool(swig_obj[4], &val5);
+  if (!SWIG_IsOK(ecode5)) {
+    SWIG_exception_fail(SWIG_ArgError(ecode5), "in method '" "AnnIndex_FakasuloSearchProdCons" "', argument " "5"" of type '" "bool""'");
+  } 
+  arg5 = static_cast< bool >(val5);
+  ecode6 = SWIG_AsVal_int(swig_obj[5], &val6);
+  if (!SWIG_IsOK(ecode6)) {
+    SWIG_exception_fail(SWIG_ArgError(ecode6), "in method '" "AnnIndex_FakasuloSearchProdCons" "', argument " "6"" of type '" "int""'");
+  } 
+  arg6 = static_cast< int >(val6);
+  ecode7 = SWIG_AsVal_int(swig_obj[6], &val7);
+  if (!SWIG_IsOK(ecode7)) {
+    SWIG_exception_fail(SWIG_ArgError(ecode7), "in method '" "AnnIndex_FakasuloSearchProdCons" "', argument " "7"" of type '" "int""'");
+  } 
+  arg7 = static_cast< int >(val7);
+  result = (arg1)->FakasuloSearchProdCons(arg2,arg3,arg4,arg5,arg6,arg7);
+  
+  {
+    resultobj = PyTuple_New(3);
+    int k_neighbours = result[0].GetResultNum();
+    int resNum = (&result)->size();
+    auto dstVecIDs = PyList_New(k_neighbours*resNum);
+    auto dstVecDists = PyList_New(k_neighbours*resNum);
+    auto dstMetadata = PyList_New(k_neighbours*resNum);
+    int i = 0;
+    for (const auto& res : result)
+    {
+      for(int j=0; j<k_neighbours; j++)
+      {
+        PyList_SetItem(dstVecIDs, i, PyInt_FromLong(res.GetResult(j)->VID));
+        PyList_SetItem(dstVecDists, i, PyFloat_FromDouble(res.GetResult(j)->Dist));
+        i++;
+      }
+    }
+    
+    // if (*((&result)->get())->WithMeta()) 
+    // {
+    //     for (i = 0; i < resNum; ++i)
+    //     {
+    //         const auto& metadata = result->GetMetadata(i);
+    //         PyList_SetItem(dstMetadata, i, PyBytes_FromStringAndSize(reinterpret_cast<const char*>(metadata.Data()),
+    //                                                                  metadata.Length()));
+    //     }
+    // }
+    
+    PyTuple_SetItem(resultobj, 0, dstVecIDs);
+    PyTuple_SetItem(resultobj, 1, dstVecDists);
+    PyTuple_SetItem(resultobj, 2, dstMetadata);
+  }
+  
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
 SWIGINTERN PyObject *_wrap_AnnIndex_ReadyToServe(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
   PyObject *resultobj = 0;
   AnnIndex *arg1 = (AnnIndex *) 0 ;
@@ -4652,6 +4920,41 @@ fail:
 }
 
 
+SWIGINTERN PyObject *_wrap_AnnIndex_Test(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  AnnIndex *arg1 = (AnnIndex *) 0 ;
+  void *argp1 = 0 ;
+  int res1 = 0 ;
+  std::shared_ptr< AnnIndex > tempshared1 ;
+  std::shared_ptr< AnnIndex > *smartarg1 = 0 ;
+  PyObject *swig_obj[1] ;
+  bool result;
+  
+  if (!args) SWIG_fail;
+  swig_obj[0] = args;
+  {
+    int newmem = 0;
+    res1 = SWIG_ConvertPtrAndOwn(swig_obj[0], &argp1, SWIGTYPE_p_std__shared_ptrT_AnnIndex_t, 0 |  0 , &newmem);
+    if (!SWIG_IsOK(res1)) {
+      SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "AnnIndex_Test" "', argument " "1"" of type '" "AnnIndex *""'");
+    }
+    if (newmem & SWIG_CAST_NEW_MEMORY) {
+      tempshared1 = *reinterpret_cast< std::shared_ptr<  AnnIndex > * >(argp1);
+      delete reinterpret_cast< std::shared_ptr<  AnnIndex > * >(argp1);
+      arg1 = const_cast< AnnIndex * >(tempshared1.get());
+    } else {
+      smartarg1 = reinterpret_cast< std::shared_ptr<  AnnIndex > * >(argp1);
+      arg1 = const_cast< AnnIndex * >((smartarg1 ? smartarg1->get() : 0));
+    }
+  }
+  result = (bool)(arg1)->Test();
+  resultobj = SWIG_From_bool(static_cast< bool >(result));
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
 SWIGINTERN PyObject *AnnIndex_swigregister(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
   PyObject *obj;
   if (!SWIG_Python_UnpackTuple(args, "swigregister", 1, 1, &obj)) return NULL;
@@ -4678,6 +4981,8 @@ static PyMethodDef SwigMethods[] = {
 	 { "AnnIndex_Search", _wrap_AnnIndex_Search, METH_VARARGS, NULL},
 	 { "AnnIndex_SearchWithMetaData", _wrap_AnnIndex_SearchWithMetaData, METH_VARARGS, NULL},
 	 { "AnnIndex_BatchSearch", _wrap_AnnIndex_BatchSearch, METH_VARARGS, NULL},
+	 { "AnnIndex_FakasuloSearch", _wrap_AnnIndex_FakasuloSearch, METH_VARARGS, NULL},
+	 { "AnnIndex_FakasuloSearchProdCons", _wrap_AnnIndex_FakasuloSearchProdCons, METH_VARARGS, NULL},
 	 { "AnnIndex_ReadyToServe", _wrap_AnnIndex_ReadyToServe, METH_O, NULL},
 	 { "AnnIndex_UpdateIndex", _wrap_AnnIndex_UpdateIndex, METH_O, NULL},
 	 { "AnnIndex_Save", _wrap_AnnIndex_Save, METH_VARARGS, NULL},
@@ -4687,6 +4992,7 @@ static PyMethodDef SwigMethods[] = {
 	 { "AnnIndex_DeleteByMetaData", _wrap_AnnIndex_DeleteByMetaData, METH_VARARGS, NULL},
 	 { "AnnIndex_Load", _wrap_AnnIndex_Load, METH_O, NULL},
 	 { "AnnIndex_Merge", _wrap_AnnIndex_Merge, METH_VARARGS, NULL},
+	 { "AnnIndex_Test", _wrap_AnnIndex_Test, METH_O, NULL},
 	 { "AnnIndex_swigregister", AnnIndex_swigregister, METH_O, NULL},
 	 { "AnnIndex_swiginit", AnnIndex_swiginit, METH_VARARGS, NULL},
 	 { NULL, NULL, 0, NULL }

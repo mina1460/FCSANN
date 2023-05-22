@@ -16,15 +16,15 @@ class AnnIndex
 public:
     AnnIndex(DimensionType p_dimension);
 
-    AnnIndex(const char* p_algoType, const char* p_valueType, DimensionType p_dimension);
+    AnnIndex(const char *p_algoType, const char *p_valueType, DimensionType p_dimension);
 
     ~AnnIndex();
 
-    void SetBuildParam(const char* p_name, const char* p_value, const char* p_section);
+    void SetBuildParam(const char *p_name, const char *p_value, const char *p_section);
 
-    void SetSearchParam(const char* p_name, const char* p_value, const char* p_section);
+    void SetSearchParam(const char *p_name, const char *p_value, const char *p_section);
 
-    bool LoadQuantizer(const char* p_quantizerFile);
+    bool LoadQuantizer(const char *p_quantizerFile);
 
     void SetQuantizerADC(bool p_adc);
 
@@ -42,11 +42,15 @@ public:
 
     std::shared_ptr<QueryResult> BatchSearch(ByteArray p_data, int p_vectorNum, int p_resultNum, bool p_withMetaData);
 
+    std::vector<QueryResult> FakasuloSearch(ByteArray p_data, int p_vectorNum, int p_resultNum, bool p_withMetaData, int p_numThreads);
+
+    std::vector<QueryResult> FakasuloSearchProdCons(ByteArray p_data, int p_vectorNum, int p_resultNum, bool p_withMetaData, int C_num_threads, int P_num_threads);
+
     bool ReadyToServe() const;
 
     void UpdateIndex();
 
-    bool Save(const char* p_saveFile) const;
+    bool Save(const char *p_saveFile) const;
 
     bool Add(ByteArray p_data, SizeType p_num, bool p_normalized);
 
@@ -56,17 +60,19 @@ public:
 
     bool DeleteByMetaData(ByteArray p_meta);
 
-    static AnnIndex Load(const char* p_loaderFile);
+    static AnnIndex Load(const char *p_loaderFile);
 
-    static AnnIndex Merge(const char* p_indexFilePath1, const char* p_indexFilePath2);
+    static AnnIndex Merge(const char *p_indexFilePath1, const char *p_indexFilePath2);
+
+    bool Test();
 
 private:
-    AnnIndex(const std::shared_ptr<SPTAG::VectorIndex>& p_index);
-    
+    AnnIndex(const std::shared_ptr<SPTAG::VectorIndex> &p_index);
+
     std::shared_ptr<SPTAG::VectorIndex> m_index;
 
     size_t m_inputVectorSize;
-    
+
     DimensionType m_dimension;
 
     SPTAG::IndexAlgoType m_algoType;

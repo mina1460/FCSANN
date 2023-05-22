@@ -35,6 +35,10 @@ public:
     {
     }
 
+    QueryResultSet(const T* _target, int _K, int id) : QueryResult(_target, _K, false, id)
+    {
+    }
+
     QueryResultSet(const QueryResultSet& other) : QueryResult(other)
     {
     }
@@ -89,11 +93,11 @@ public:
         return false;
     }
 
-    bool DeDupAddPoint(const SizeType index, float dist)
+    bool isDuplicate(const SizeType index)
     {
        if(m_vectorSet.count(index) == 0){
-           return AddPoint(index, dist);
-       }else return false;
+           return false;
+       }else return true;
     }
 
     inline void SortResult()
