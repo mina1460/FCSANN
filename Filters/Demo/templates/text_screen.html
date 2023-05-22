@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.3.1/dist/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+        <title>Text Screen</title>
+    </head>
+    <body>
+        <!-- Add padding -->
+        <div class="container-fluid" style="padding: 60px;">
+            <div class="container-fluid" style="padding-bottom: 40px;">
+                <a href="/"><button type="button" class="btn btn-outline-primary">Back</button></a>
+            </div>
+            <h1>Text Demo</h1>
+            <div class="container" style="padding-top: 40px;">
+                <h2>Query Text</h2>
+                <form id="text" method="post">
+                    <div class="row">
+                        <div class="col-4 form-group">
+                            <textarea name="query_text" class="form-control" aria-label="With textarea"></textarea>
+                        </div>
+                        <div class="col form-group">
+                            <h4>Rating</h4>
+                            <select name="rating" class="custom-select">
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                                <option selected value="5">5</option>
+                            </select>
+                        </div>
+                        <div class="col form-group">
+                            <h4>Verified Purchase</h4>
+                            <select name="vpurchase" class="custom-select">
+                                <option value="0">No</option>
+                                <option selected value="1">Yes</option>
+                            </select>
+                        </div>
+                        <div class="col form-group">
+                            <h4>Year</h4>
+                            <input name="year" type="number" min="1999" max="2023" step="1" value="2016" style="width: 100%"/>
+                        </div>
+                        <div class="col form-group">
+                            <h4>Category</h4>
+                            <select name="category" class="custom-select custom-select">
+                                <option value="0">Baby</option>
+                                <option value="1">Camera</option>
+                                <option value="2">Digital Music</option>
+                                <option value="3">Jewelry</option>
+                                <option value="4">Musical Instruments</option>
+                                <option value="5">Personal Care Appliances</option>
+                                <option value="6">Tools</option>
+                                <option value="7">Video Games</option>
+                                <option value="8">Watches</option>
+                            </select>
+                        </div>
+                        <div class="col form-group">
+                            <h3>K</h3>
+                            <input name="k" type="number" min="1" max="100000" step="1" value="100" />
+                            <button type="submit" class="btn btn-primary" style="margin-top: 10px;">Submit</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% if show_results %}
+            <div style="padding-top: 40px;">
+                <h2>Results</h2>
+                <p>Time took: {{time}} seconds</p>
+                <p>Here is some text. {{text}}</p>
+                <ol>
+                    {% for item in my_list %}
+                    <li>
+                        <div >
+                            {{ item.id }}
+                            <div>
+                                <p>{{ item.text }}</p>
+                                <p>Rating: {{ item.f1 }}</p>
+                                <p>Verified Purchase: {{ item.f2 }}</p>
+                                <p>Year: {{ item.f3 }}</p>
+                                <p>Category: {{ item.f4 }}</p>
+                            </div>
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ol>
+            </div>
+            {% endif %}
+        </div>
+    </body>
+</html>

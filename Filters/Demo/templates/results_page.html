@@ -1,0 +1,53 @@
+<html>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link href="https://fonts.googleapis.com/css?family=Lato:400,600,700" rel="stylesheet" />
+    <link href="css/main.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css">
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
+  </head>
+  <body>
+    <div class="bg container-fluid" style="padding: 60px;">
+        <h1>Filtered Search Demo</h1>
+        <button class="btn btn-primary btn-lg mr-3" onclick="window.location.href='/image'">New Search</button>
+        <div style="padding-top: 40px;">
+            <h2>Query</h2>
+            <div class="rounded-div">
+                <p>{{query}}</p>
+                <div class="parent-div">
+                    <div class="rounded-div label">Rating: {{ f1 }}</div>
+                    <div class="rounded-div label">Verified Purchase: {{ f2 }}</div>
+                    <div class="rounded-div label">Year: {{ f3 }}</div>
+                    <div class="rounded-div label">Category: {{ f4 }}</div>
+                </div>
+            </div>
+        </div>
+
+        {% if show_results %}
+        <div style="padding-top: 40px;">
+            <h2>Results</h2>
+            <p>Time took: {{time}} seconds</p>
+            <ol>
+                {% for item in my_list %}
+                <li>
+                    <div>
+                    {{ item.id }} - {{ item.product }} - {{ item.distance }}
+                        <div class="rounded-div">
+                            <p>{{ item.text }}</p>
+                            <div class="parent-div">
+                                <div class="rounded-div label">Rating: {{ item.f1 }}</div>
+                                <div class="rounded-div label">Verified Purchase: {{ item.f2 }}</div>
+                                <div class="rounded-div label">Year: {{ item.f3 }}</div>
+                                <div class="rounded-div label">Category: {{ item.f4 }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </li>
+                {% endfor %}
+            </ol>
+        </div>
+        {% endif %}
+    </div>
+  </body>
+</html>
