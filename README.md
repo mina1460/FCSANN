@@ -3,7 +3,7 @@
 In This repository contains the source code for a document retrieval system built using the SPANN algorithm. The system consists of three main folders, each serving a specific purpose. Below is an overview of the folder structure and their functionalities.
 Folder Structure
 
-![Image Alt Text](https://ibb.co/JKC7HqX)
+![Image Alt Text]([https://ibb.co/JKC7HqX](https://i.ibb.co/47JTp2B/white.png))
 
 ### SPTAG:
 This folder contains the SPANN algorithm implementation with our extensions added to it. The SPANN algorithm utilizes both memory and disk storage to construct a hybrid index for efficient retrieval of nearest neighbors for a given query. Our extensions include an inverted-index-based, out-of-order query execution engine utilizing a producer-consumer threading pattern. It also includes the support for filter search on unstructured data.
